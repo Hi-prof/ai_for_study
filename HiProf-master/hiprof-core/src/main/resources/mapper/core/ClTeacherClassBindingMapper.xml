@@ -18,6 +18,16 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         from cl_teacher_class_binding
     </sql>
 
+    <select id="selectClTeacherClassBindingList" parameterType="ClTeacherClassBinding" resultMap="ClTeacherClassBindingResult">
+        <include refid="selectClTeacherClassBindingVo" />
+        <where>
+            <if test="teacherId != null">and teacher_id = #{teacherId}</if>
+            <if test="majorId != null">and major_id = #{majorId}</if>
+            <if test="className != null and className != ''">and class_name = #{className}</if>
+        </where>
+        order by major_id asc, class_name asc, id asc
+    </select>
+
     <select id="selectClTeacherClassBindingListByTeacherId" parameterType="Long" resultMap="ClTeacherClassBindingResult">
         <include refid="selectClTeacherClassBindingVo" />
         where teacher_id = #{teacherId}

@@ -2080,3 +2080,56 @@ CREATE TABLE IF NOT EXISTS cl_teacher_class_binding (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='教师班级绑定表';
 
 -- END FILE: 20260318_teacher_class_binding_patch.sql
+
+-- ===================================================================
+-- BEGIN FILE: 20260323_class_management_patch.sql
+-- ===================================================================
+-- 班级管理补丁
+-- 执行日期：2026-03-23
+-- 用途：
+-- 1. 新增 cl_classes 班级主数据表
+-- 2. 新增系统管理-班级管理菜单及按钮权限
+-- ===================================================================
+
+CREATE TABLE IF NOT EXISTS cl_classes (
+    class_id BIGINT NOT NULL AUTO_INCREMENT COMMENT '班级ID',
+    major_id BIGINT NOT NULL COMMENT '专业ID',
+    class_name VARCHAR(100) NOT NULL COMMENT '班级名称',
+    status CHAR(1) NOT NULL DEFAULT '0' COMMENT '状态（0正常 1停用）',
+    remark VARCHAR(500) DEFAULT NULL COMMENT '备注',
+    create_by VARCHAR(64) DEFAULT '' COMMENT '创建者',
+    create_time DATETIME DEFAULT NULL COMMENT '创建时间',
+    update_by VARCHAR(64) DEFAULT '' COMMENT '更新者',
+    update_time DATETIME DEFAULT NULL COMMENT '更新时间',
+    PRIMARY KEY (class_id),
+    UNIQUE KEY uq_cl_classes_major_class (major_id, class_name),
+    KEY idx_cl_classes_major_id (major_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='班级主数据表';
+
+INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
+SELECT 118, '班级管理', 1, 9, 'class', 'system/class/index', '', '', 1, 0, 'C', '0', '0', 'system:class:list', 'education', 'migration', SYSDATE(), '', NULL, '班级管理菜单'
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = 118);
+
+UPDATE sys_menu SET order_num = 10 WHERE menu_id = 108 AND order_num = 9;
+
+INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
+SELECT 1061, '班级查询', 118, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'system:class:query', '#', 'migration', SYSDATE(), '', NULL, ''
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = 1061);
+
+INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
+SELECT 1062, '班级新增', 118, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'system:class:add', '#', 'migration', SYSDATE(), '', NULL, ''
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = 1062);
+
+INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
+SELECT 1063, '班级修改', 118, 3, '', '', '', '', 1, 0, 'F', '0', '0', 'system:class:edit', '#', 'migration', SYSDATE(), '', NULL, ''
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = 1063);
+
+INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
+SELECT 1064, '班级删除', 118, 4, '', '', '', '', 1, 0, 'F', '0', '0', 'system:class:remove', '#', 'migration', SYSDATE(), '', NULL, ''
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = 1064);
+
+INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
+SELECT 1065, '班级导出', 118, 5, '', '', '', '', 1, 0, 'F', '0', '0', 'system:class:export', '#', 'migration', SYSDATE(), '', NULL, ''
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = 1065);
+
+-- END FILE: 20260323_class_management_patch.sql

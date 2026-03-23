@@ -10,6 +10,14 @@ import java.util.List;
 public interface ClTeacherClassBindingMapper
 {
     /**
+     * 查询教师班级绑定列表
+     *
+     * @param clTeacherClassBinding 查询条件
+     * @return 绑定列表
+     */
+    public List<ClTeacherClassBinding> selectClTeacherClassBindingList(ClTeacherClassBinding clTeacherClassBinding);
+
+    /**
      * 按教师ID查询班级绑定列表
      *
      * @param teacherId 教师ID

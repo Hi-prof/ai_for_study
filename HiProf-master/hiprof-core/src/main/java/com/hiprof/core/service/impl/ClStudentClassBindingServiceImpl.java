@@ -8,7 +8,9 @@ import com.hiprof.common.utils.DateUtils;
 import com.hiprof.common.utils.StringUtils;
 import com.hiprof.core.domain.ClCourseMembers;
 import com.hiprof.core.domain.ClCourses;
+import com.hiprof.core.domain.ClClass;
 import com.hiprof.core.domain.ClStudentClassBinding;
+import com.hiprof.core.mapper.ClClassMapper;
 import com.hiprof.core.mapper.ClCourseMembersMapper;
 import com.hiprof.core.mapper.ClCoursesMapper;
 import com.hiprof.core.mapper.ClStudentClassBindingMapper;
@@ -42,6 +44,9 @@ public class ClStudentClassBindingServiceImpl implements IClStudentClassBindingS
     private ClCoursesMapper clCoursesMapper;
 
     @Autowired
+    private ClClassMapper clClassMapper;
+
+    @Autowired
     private ClCourseMembersMapper clCourseMembersMapper;
 
     @Autowired
@@ -68,11 +73,24 @@ public class ClStudentClassBindingServiceImpl implements IClStudentClassBindingS
         {
             return classNames;
         }
+        Set<String> uniqueClassNames = new LinkedHashSet<String>();
+
+        ClClass classQuery = new ClClass();
+        classQuery.setMajorId(majorId);
+        classQuery.setStatus("0");
+        List<ClClass> classes = clClassMapper.selectClClassList(classQuery);
+        for (ClClass clClass : classes)
+        {
+            if (clClass == null || StringUtils.isEmpty(clClass.getClassName()))
+            {
+                continue;
+            }
+            uniqueClassNames.add(clClass.getClassName().trim());
+        }
 
         ClCourses query = new ClCourses();
         query.setMajorId(majorId);
         List<ClCourses> courses = clCoursesMapper.selectClCoursesList(query);
-        Set<String> uniqueClassNames = new LinkedHashSet<String>();
         for (ClCourses course : courses)
         {
             if (course == null || StringUtils.isEmpty(course.getClassName()))
