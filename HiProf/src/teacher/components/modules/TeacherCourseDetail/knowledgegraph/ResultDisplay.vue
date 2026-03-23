@@ -118,11 +118,21 @@
         >
           <i class="export-icon" v-if="!isExporting"></i>
           <i class="loading-icon" v-else></i>
-          {{ isExporting ? '正在保存知识图谱...' : '保存到知识图谱' }}
+          {{ isExporting ? '正在保存知识图谱...' : exportLabel }}
         </button>
       </div>
       <div class="edit-status" v-if="isModified">
         <span class="status-text">内容已修改</span>
+      </div>
+
+      <div v-if="isGenerating" class="export-progress generation-progress">
+        <div class="progress-header">
+          <span class="progress-text">{{ generationProgressText || '知识图谱正在生成...' }}</span>
+          <span class="progress-percent">{{ generationProgress }}%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" :style="{ width: `${generationProgress}%` }"></div>
+        </div>
       </div>
 
       <!-- 导出进度显示 -->
@@ -155,6 +165,14 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  generationProgress: {
+    type: Number,
+    default: 0
+  },
+  generationProgressText: {
+    type: String,
+    default: ''
+  },
   exportProgress: {
     type: Number,
     default: 0
@@ -162,6 +180,10 @@ const props = defineProps({
   exportProgressText: {
     type: String,
     default: ''
+  },
+  exportLabel: {
+    type: String,
+    default: '保存到知识图谱'
   },
   textNodeParserRef: {
     type: Object,
@@ -387,8 +409,4 @@ watch(() => props.textNodeParserRef, () => {
   border-top: 1px solid #e2e8f0;
   background-color: #f8fafc;
 }
-</style>
-
-<style scoped>
-@import '@/teacher/styles/ai-knowledge-graph-generator.css';
 </style>

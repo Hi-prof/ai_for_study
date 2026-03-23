@@ -3,11 +3,11 @@ package com.hiprof.core.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.hiprof.core.domain.dto.KnowledgeGraphGenerateRequest;
 
+import java.util.Map;
+
 public interface IKnowledgeAgentService
 {
-    JsonNode createTask(KnowledgeGraphGenerateRequest request);
+    JsonNode generateDeepCard(JsonNode request);
 
-    JsonNode getTask(String taskId);
-
-    Long persistTaskResult(String taskId, String createBy);
+    Map<String, Object> generateAndPersistGraph(KnowledgeGraphGenerateRequest request, String createBy);
 }

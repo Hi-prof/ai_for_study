@@ -131,7 +131,7 @@
       v-model:visible="uploadDialogVisible"
       :course-id="courseId"
       :node-name="nodeName"
-      :node-id="nodeId"
+      :node-id="actualNodeId"
       :pre-selected-files="selectedFiles"
       @upload-success="handleUploadSuccess"
       @upload-error="handleUploadError"

@@ -26,9 +26,12 @@
           :original-value="originalResult"
           :readonly-result="true"
           :is-generating="aiGenerationService?.isGenerating || false"
-          :is-exporting="exportController?.isExporting || false"
-          :export-progress="exportController?.exportProgress || 0"
-          :export-progress-text="exportController?.exportProgressText || ''"
+          :generation-progress="generationProgress"
+          :generation-progress-text="generationProgressText"
+          :is-exporting="false"
+          :export-progress="0"
+          :export-progress-text="''"
+          :export-label="latestGraphId ? '查看知识图谱' : '等待生成完成'"
           :text-node-parser-ref="null"
           :selected-parent-node-id="''"
           :available-parent-nodes="[]"
@@ -57,19 +60,6 @@
       @course-info-loaded="onCourseInfoLoaded"
       @operation-error="onOperationError"
     />
-
-    <ExportController
-      ref="exportController"
-      :course-name="courseName"
-      :node-count="getNodeCount()"
-      @export-start="onExportStart"
-      @export-confirm="onExportConfirm"
-      @export-cancel="onExportCancel"
-      @export-success="onExportSuccess"
-      @export-error="onExportError"
-      @export-complete="onExportComplete"
-      @navigate-to-graph="onNavigateToGraph"
-    />
   </div>
 </template>
 
@@ -81,8 +71,7 @@ import ResultDisplay from '../ResultDisplay.vue';
 import ResizableLayout from '../ResizableLayout.vue';
 import AiGenerationService from './AiGenerationService.vue';
 import KnowledgeGraphManager from './KnowledgeGraphManager.vue';
-import ExportController from './ExportController.vue';
-import { persistKnowledgeAgentTask } from '@/api/graph';
+import '@/teacher/styles/ai-knowledge-graph-generator.css';
 
 // 定义props
 const props = defineProps({
@@ -101,15 +90,17 @@ const router = useRouter();
 // 组件引用
 const aiGenerationService = ref(null);
 const knowledgeGraphManager = ref(null);
-const exportController = ref(null);
 
 // 响应式数据
 const graphRequirements = ref('');
 const generatedResult = ref('');
 const originalResult = ref('');
 const isResultModified = ref(false);
+const generationProgress = ref(0);
+const generationProgressText = ref('');
 const courseName = ref('');
 const latestTaskId = ref('');
+const latestGraphId = ref('');
 const latestTaskResult = ref(null);
 
 // 返回上一页
@@ -153,30 +144,35 @@ const handleReset = () => {
 // 处理导出
 const handleExport = () => {
   if (!generatedResult.value.trim()) {
-    alert('没有可保存的知识图谱结果');
+    alert('暂无可查看的知识图谱结果');
     return;
   }
 
-  if (!latestTaskId.value) {
-    alert('请先完成一次AI生成，再保存到知识图谱');
+  if (!latestGraphId.value) {
+    alert('请先完成一次 AI 生成，后端会自动创建并更新知识图谱');
     return;
   }
 
-  if (exportController.value) {
-    exportController.value.startExport();
-  }
+  onNavigateToGraph();
 };
 
 // AI生成服务事件处理
 const onGenerationStart = () => {
   latestTaskId.value = '';
+  latestGraphId.value = '';
   latestTaskResult.value = null;
-  console.log('开始提交知识图谱智能体任务...');
+  generatedResult.value = '';
+  originalResult.value = '';
+  isResultModified.value = false;
+  generationProgress.value = 0;
+  generationProgressText.value = '已提交后端生成请求，后端正在完成 AI 生成和图谱更新...';
+  console.log('开始调用后端知识图谱生成接口...');
 };
 
 const onGenerationProgress = (data) => {
-  generatedResult.value = data.accumulated;
-  console.log('知识图谱任务进度:', data.stage, data.accumulated);
+  generationProgress.value = data.progress?.percent || 0;
+  generationProgressText.value = data.accumulated;
+  console.log('知识图谱生成进度:', data.accumulated);
 };
 
 const onGenerationSuccess = (data) => {
@@ -184,8 +180,15 @@ const onGenerationSuccess = (data) => {
   originalResult.value = data.original;
   isResultModified.value = false;
   latestTaskId.value = data.taskId || '';
+  latestGraphId.value = data.graphId || '';
   latestTaskResult.value = data.taskResult || null;
-  console.log('知识图谱任务完成，节点数:', data.taskResult?.nodes?.length || 0);
+  generationProgress.value = 100;
+  generationProgressText.value = '后端已完成知识图谱生成、解析并更新图谱内容';
+  emit('knowledge-graph-updated', {
+    graphId: latestGraphId.value,
+    taskId: latestTaskId.value
+  });
+  console.log('知识图谱已由后端直接更新，节点数:', data.taskResult?.nodes?.length || 0);
 };
 
 const onGenerationError = (error) => {
@@ -193,6 +196,9 @@ const onGenerationError = (error) => {
 };
 
 const onGenerationComplete = () => {
+  if (!latestTaskResult.value) {
+    generationProgress.value = 0;
+  }
   console.log('知识图谱生成完成');
 };
 
@@ -204,57 +210,6 @@ const onCourseInfoLoaded = (name) => {
 const onOperationError = (error) => {
   console.error('操作错误:', error);
   alert(error.message);
-};
-
-// 导出控制器事件处理
-const onExportStart = () => {
-  console.log('开始导出流程...');
-};
-
-const onExportConfirm = async (options) => {
-  try {
-    if (!latestTaskId.value) {
-      throw new Error('缺少任务ID，无法保存知识图谱');
-    }
-
-    exportController.value.updateProgress(30, '正在将智能体结果保存到后端知识图谱...');
-    const persistResponse = await persistKnowledgeAgentTask(latestTaskId.value);
-    exportController.value.updateProgress(100, '知识图谱保存完成');
-    exportController.value.handleExportSuccess({
-      success: [persistResponse?.data || latestTaskResult.value || {}],
-      failed: []
-    });
-
-  } catch (error) {
-    console.error('导出确认处理失败:', error);
-    if (exportController.value) {
-      exportController.value.handleExportError(error);
-    }
-  } finally {
-    if (exportController.value) {
-      exportController.value.completeExport();
-    }
-  }
-};
-
-const onExportCancel = () => {
-  console.log('用户取消导出');
-};
-
-const onExportSuccess = (result) => {
-  console.log('导出成功:', result);
-  // 延迟一段时间后自动返回到课程详情页面，触发知识图谱刷新
-  setTimeout(() => {
-    router.push(`/teacher/course/${props.courseId}`);
-  }, 2000); // 给用户2秒时间看到成功提示
-};
-
-const onExportError = (error) => {
-  console.error('导出失败:', error);
-};
-
-const onExportComplete = () => {
-  console.log('导出流程完成');
 };
 
 const onNavigateToGraph = () => {
@@ -277,7 +232,3 @@ watch(generatedResult, (newValue) => {
   }
 });
 </script>
-
-<style scoped>
-@import '@/teacher/styles/ai-knowledge-graph-generator.css';
-</style>

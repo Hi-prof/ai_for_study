@@ -97,29 +97,21 @@ public class ZstpGraphController extends BaseController
         return toAjax(zstpGraphService.insertZstpGraph(zstpGraph));
     }
 
-    @Operation(summary = "提交知识图谱智能体生成任务")
-    @PostMapping("/agent/tasks")
-    public AjaxResult createAgentTask(@RequestBody KnowledgeGraphGenerateRequest request)
-    {
-        return success(knowledgeAgentService.createTask(request));
-    }
-
-    @Operation(summary = "查询知识图谱智能体任务状态")
-    @GetMapping("/agent/tasks/{taskId}")
-    public AjaxResult getAgentTask(@PathVariable("taskId") String taskId)
-    {
-        return success(knowledgeAgentService.getTask(taskId));
-    }
-
-    @Operation(summary = "保存知识图谱智能体生成结果")
-    @PostMapping("/agent/tasks/{taskId}/persist")
-    public AjaxResult persistAgentTask(
-            @PathVariable("taskId") String taskId,
+    @Operation(summary = "生成并直接保存知识图谱")
+    @PostMapping("/agent/generate")
+    public AjaxResult generateAndPersistGraph(
+            @RequestBody KnowledgeGraphGenerateRequest request,
             @AuthenticationPrincipal LoginUser loginUser
     )
     {
-        Long graphId = knowledgeAgentService.persistTaskResult(taskId, loginUser.getUserId().toString());
-        return AjaxResult.success("知识图谱保存成功", graphId);
+        return success(knowledgeAgentService.generateAndPersistGraph(request, loginUser.getUserId().toString()));
+    }
+
+    @Operation(summary = "手动生成知识点深卡片")
+    @PostMapping("/agent/deep-card")
+    public AjaxResult generateDeepCard(@RequestBody com.fasterxml.jackson.databind.JsonNode request)
+    {
+        return success(knowledgeAgentService.generateDeepCard(request));
     }
 
     /**

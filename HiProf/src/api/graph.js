@@ -623,57 +623,32 @@ export {
   getKnowledgeGraphNodes
 };
 
-/**
- * 提交知识图谱智能体生成任务
- * @param {Object} payload 生成参数
- * @returns {Promise<Object>} 任务信息
- */
-export const createKnowledgeAgentTask = (payload) => {
+export const generateKnowledgeGraphAndPersist = (payload, signal) => {
   return request({
-    url: '/core/zstp/agent/tasks',
+    url: '/core/zstp/agent/generate',
+    method: 'post',
+    data: payload,
+    signal,
+    timeout: 600000
+  }).then(response => {
+    ensureSuccessfulResponse(response, '生成并保存知识图谱失败');
+    return response;
+  }).catch(error => {
+    console.error('生成并保存知识图谱失败:', error);
+    return Promise.reject(error);
+  });
+};
+
+export const generateKnowledgeAgentDeepCard = (payload) => {
+  return request({
+    url: '/core/zstp/agent/deep-card',
     method: 'post',
     data: payload
   }).then(response => {
-    ensureSuccessfulResponse(response, '提交知识图谱智能体任务失败');
+    ensureSuccessfulResponse(response, '生成知识点深卡片失败');
     return response;
   }).catch(error => {
-    console.error('提交知识图谱智能体任务失败:', error);
-    return Promise.reject(error);
-  });
-};
-
-/**
- * 查询知识图谱智能体任务状态
- * @param {string} taskId 任务ID
- * @returns {Promise<Object>} 任务详情
- */
-export const getKnowledgeAgentTask = (taskId) => {
-  return request({
-    url: `/core/zstp/agent/tasks/${taskId}`,
-    method: 'get'
-  }).then(response => {
-    ensureSuccessfulResponse(response, '查询知识图谱智能体任务失败');
-    return response;
-  }).catch(error => {
-    console.error('查询知识图谱智能体任务失败:', error);
-    return Promise.reject(error);
-  });
-};
-
-/**
- * 保存知识图谱智能体任务结果
- * @param {string} taskId 任务ID
- * @returns {Promise<Object>} 保存结果
- */
-export const persistKnowledgeAgentTask = (taskId) => {
-  return request({
-    url: `/core/zstp/agent/tasks/${taskId}/persist`,
-    method: 'post'
-  }).then(response => {
-    ensureSuccessfulResponse(response, '保存知识图谱智能体结果失败');
-    return response;
-  }).catch(error => {
-    console.error('保存知识图谱智能体结果失败:', error);
+    console.error('生成知识点深卡片失败:', error);
     return Promise.reject(error);
   });
 };

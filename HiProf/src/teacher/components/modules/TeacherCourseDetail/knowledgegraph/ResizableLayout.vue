@@ -79,8 +79,3 @@ onUnmounted(() => {
   overflow: hidden;
 }
 </style>
-
-<style scoped>
-@import '@/teacher/styles/ai-knowledge-graph-generator.css';
-</style>
-

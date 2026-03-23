@@ -57,7 +57,7 @@
           <ChapterFileList
             :course-id="courseId"
             :node-name="currentChapter.title"
-            :node-id="null"
+            :node-id="currentChapter.id"
             @upload-success="handleFileUploadSuccess"
             @upload-error="handleFileUploadError"
           />
@@ -156,13 +156,49 @@ const {
   toggleChapter
 } = useChapterManagement(props.courseId);
 
+const findChapterById = (chapterId) => {
+  for (const chapter of chapters.value) {
+    if (String(chapter.id) === String(chapterId)) {
+      return chapter;
+    }
+    const sectionStack = Array.isArray(chapter.sections) ? [...chapter.sections] : [];
+    while (sectionStack.length > 0) {
+      const section = sectionStack.shift();
+      if (String(section.id) === String(chapterId)) {
+        return section;
+      }
+      if (Array.isArray(section.children) && section.children.length > 0) {
+        sectionStack.push(...section.children);
+      }
+    }
+  }
+  return null;
+};
+
 // 计算属性
 const currentChapter = computed(() => {
-  return chapters.value.find(c => c.id === currentChapterId.value);
+  return findChapterById(currentChapterId.value);
 });
 
 const currentChapterIndex = computed(() => {
-  return chapters.value.findIndex(c => c.id === currentChapterId.value);
+  const topLevelIndex = chapters.value.findIndex(c => String(c.id) === String(currentChapterId.value));
+  if (topLevelIndex >= 0) {
+    return topLevelIndex;
+  }
+  const sectionOwnerIndex = chapters.value.findIndex(chapter => {
+    const stack = Array.isArray(chapter.sections) ? [...chapter.sections] : [];
+    while (stack.length > 0) {
+      const section = stack.shift();
+      if (String(section.id) === String(currentChapterId.value)) {
+        return true;
+      }
+      if (Array.isArray(section.children) && section.children.length > 0) {
+        stack.push(...section.children);
+      }
+    }
+    return false;
+  });
+  return sectionOwnerIndex;
 });
 
 // 方法

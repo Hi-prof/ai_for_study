@@ -8,6 +8,7 @@ import com.hiprof.core.config.KnowledgeAgentProperties;
 import com.hiprof.core.domain.ZstpGraph;
 import com.hiprof.core.domain.ZstpNode;
 import com.hiprof.core.domain.dto.KnowledgeGraphGenerateRequest;
+import com.hiprof.core.domain.vo.ZstpGraphVo;
 import com.hiprof.core.service.IKnowledgeAgentService;
 import com.hiprof.core.service.IZstpGraphService;
 import com.hiprof.core.service.IZstpNodeService;
@@ -30,10 +31,41 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
 {
+    private static final int TASK_POLL_INTERVAL_MS = 2000;
+    private static final int TASK_MAX_POLL_ATTEMPTS = 300;
+
+    private static class PersistResult
+    {
+        private final Long primaryGraphId;
+        private final List<Long> graphIds;
+
+        private PersistResult(Long primaryGraphId, List<Long> graphIds)
+        {
+            this.primaryGraphId = primaryGraphId;
+            this.graphIds = graphIds;
+        }
+
+        private Long getPrimaryGraphId()
+        {
+            return primaryGraphId;
+        }
+
+        private List<Long> getGraphIds()
+        {
+            return graphIds;
+        }
+
+        private int getGraphCount()
+        {
+            return graphIds == null ? 0 : graphIds.size();
+        }
+    }
+
     @Autowired
     private KnowledgeAgentProperties knowledgeAgentProperties;
 
@@ -46,8 +78,7 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
     @Autowired
     private IZstpNodeService zstpNodeService;
 
-    @Override
-    public JsonNode createTask(KnowledgeGraphGenerateRequest request)
+    private JsonNode createTask(KnowledgeGraphGenerateRequest request)
     {
         if (!knowledgeAgentProperties.isEnabled())
         {
@@ -75,7 +106,16 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
     }
 
     @Override
-    public JsonNode getTask(String taskId)
+    public JsonNode generateDeepCard(JsonNode request)
+    {
+        if (request == null || request.isNull())
+        {
+            throw new ServiceException("深卡片生成请求不能为空");
+        }
+        return executeJsonRequest(HttpMethod.POST, buildDeepCardUrl(), request);
+    }
+
+    private JsonNode getTask(String taskId)
     {
         if (StringUtils.isBlank(taskId))
         {
@@ -86,9 +126,53 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
 
     @Transactional
     @Override
-    public Long persistTaskResult(String taskId, String createBy)
+    public Map<String, Object> generateAndPersistGraph(KnowledgeGraphGenerateRequest request, String createBy)
     {
-        JsonNode taskNode = getTask(taskId);
+        JsonNode taskResponse = createTask(request);
+        String taskId = defaultText(taskResponse.path("taskId"), null);
+        if (StringUtils.isBlank(taskId))
+        {
+            throw new ServiceException("未获取到知识图谱任务ID");
+        }
+
+        JsonNode completedTask = waitForTaskCompletion(taskId);
+        PersistResult persistResult = persistTaskContent(completedTask, createBy);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("taskId", taskId);
+        result.put("graphId", persistResult.getPrimaryGraphId());
+        result.put("graphIds", persistResult.getGraphIds());
+        result.put("graphCount", persistResult.getGraphCount());
+        result.put("graphName", defaultText(completedTask.path("result").path("graphTitle"), request.getCourseName()));
+        result.put("result", completedTask.path("result"));
+        result.put("task", completedTask);
+        return result;
+    }
+
+    private JsonNode waitForTaskCompletion(String taskId)
+    {
+        JsonNode latestTask = null;
+        for (int attempt = 0; attempt < TASK_MAX_POLL_ATTEMPTS; attempt++)
+        {
+            latestTask = getTask(taskId);
+            String status = defaultText(latestTask.path("status"), "");
+            if ("completed".equalsIgnoreCase(status))
+            {
+                return latestTask;
+            }
+            if ("failed".equalsIgnoreCase(status))
+            {
+                throw new ServiceException(defaultText(latestTask.path("error"), defaultText(latestTask.path("message"), "知识图谱生成失败")));
+            }
+
+            sleepQuietly(TASK_POLL_INTERVAL_MS);
+        }
+
+        throw new ServiceException("知识图谱生成超时，请稍后重试");
+    }
+
+    private PersistResult persistTaskContent(JsonNode taskNode, String createBy)
+    {
         String status = taskNode.path("status").asText();
         if (!"completed".equalsIgnoreCase(status))
         {
@@ -107,17 +191,242 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
         {
             courseId = extractLong(requestNode.path("courseId"));
         }
+        String graphType = defaultText(requestNode.path("graphType"), "0");
+
+        if ("1".equals(graphType))
+        {
+            return persistChapterGraphs(resultNode, requestNode, courseId, graphType, createBy);
+        }
+
+        Long graphId = saveOrUpdateGraph(resultNode, requestNode, courseId, graphType, createBy);
+        replaceNodes(graphId, resultNode.path("nodes"));
+        return new PersistResult(graphId, List.of(graphId));
+    }
+
+    private PersistResult persistChapterGraphs(JsonNode resultNode, JsonNode requestNode, Long courseId, String graphType, String operator)
+    {
+        if (courseId == null)
+        {
+            throw new ServiceException("课程ID不能为空，无法保存章节结构");
+        }
+
+        JsonNode nodesNode = resultNode.path("nodes");
+        if (!nodesNode.isArray() || nodesNode.isEmpty())
+        {
+            throw new ServiceException("章节结果为空，无法保存章节结构");
+        }
+
+        List<JsonNode> orderedNodes = new ArrayList<>();
+        nodesNode.forEach(orderedNodes::add);
+        orderedNodes.sort(Comparator.comparingInt(item -> item.path("level").asInt(99)));
+
+        Map<String, List<JsonNode>> childrenMap = buildChildrenMap(orderedNodes);
+        List<JsonNode> rootNodes = childrenMap.getOrDefault("root", List.of());
+        if (rootNodes.isEmpty())
+        {
+            throw new ServiceException("未识别到章节根节点，无法保存章节结构");
+        }
+
+        clearGraphs(courseId, graphType);
+
+        List<Long> graphIds = new ArrayList<>();
+        for (JsonNode rootNode : rootNodes)
+        {
+            Long graphId = createChapterGraph(rootNode, requestNode, courseId, graphType, operator);
+            graphIds.add(graphId);
+            saveChapterNodes(graphId, defaultText(rootNode.path("id"), null), childrenMap);
+        }
+
+        Long primaryGraphId = graphIds.isEmpty() ? null : graphIds.get(0);
+        return new PersistResult(primaryGraphId, graphIds);
+    }
+
+    private Map<String, List<JsonNode>> buildChildrenMap(List<JsonNode> orderedNodes)
+    {
+        Map<String, List<JsonNode>> childrenMap = new LinkedHashMap<>();
+        for (JsonNode node : orderedNodes)
+        {
+            String parentId = normalizeParentId(defaultText(node.path("parentId"), null));
+            childrenMap.computeIfAbsent(parentId, key -> new ArrayList<>()).add(node);
+        }
+        return childrenMap;
+    }
+
+    private Long createChapterGraph(JsonNode rootNode, JsonNode requestNode, Long courseId, String graphType, String operator)
+    {
+        ZstpGraph chapterGraph = new ZstpGraph();
+        chapterGraph.setCourseId(courseId);
+        chapterGraph.setGraphType(graphType);
+        chapterGraph.setName(defaultText(rootNode.path("title"), defaultText(requestNode.path("courseName"), "未命名章节")));
+        chapterGraph.setContent(extractNodeContent(rootNode, defaultText(rootNode.path("title"), "")));
+        chapterGraph.setCreateBy(operator);
+        return zstpGraphService.insertZstpGraph(chapterGraph);
+    }
+
+    private void saveChapterNodes(Long graphId, String rootAgentId, Map<String, List<JsonNode>> childrenMap)
+    {
+        if (StringUtils.isBlank(rootAgentId))
+        {
+            return;
+        }
+
+        Map<String, Long> nodeIdMapping = new HashMap<>();
+        List<JsonNode> firstLevelNodes = childrenMap.getOrDefault(rootAgentId, List.of());
+        for (JsonNode childNode : firstLevelNodes)
+        {
+            saveChapterNodeRecursive(graphId, rootAgentId, childNode, childrenMap, nodeIdMapping);
+        }
+    }
+
+    private void saveChapterNodeRecursive(Long graphId, String rootAgentId, JsonNode node, Map<String, List<JsonNode>> childrenMap, Map<String, Long> nodeIdMapping)
+    {
+        String agentNodeId = defaultText(node.path("id"), null);
+        if (StringUtils.isBlank(agentNodeId))
+        {
+            return;
+        }
+
+        String parentAgentId = defaultText(node.path("parentId"), null);
+        Long parentDbId = rootAgentId.equals(parentAgentId) ? graphId : nodeIdMapping.get(parentAgentId);
+        if (parentDbId == null)
+        {
+            parentDbId = graphId;
+        }
+
+        ZstpNode zstpNode = new ZstpNode();
+        zstpNode.setGraphId(graphId);
+        zstpNode.setParentId(parentDbId);
+        zstpNode.setName(defaultText(node.path("title"), "未命名节点"));
+        zstpNode.setContent(extractNodeContent(node, defaultText(node.path("title"), "未命名节点")));
+
+        Long createdNodeId = zstpNodeService.insertZstpNode(zstpNode);
+        nodeIdMapping.put(agentNodeId, createdNodeId);
+
+        List<JsonNode> childNodes = childrenMap.getOrDefault(agentNodeId, List.of());
+        for (JsonNode childNode : childNodes)
+        {
+            saveChapterNodeRecursive(graphId, rootAgentId, childNode, childrenMap, nodeIdMapping);
+        }
+    }
+
+    private Long saveOrUpdateGraph(JsonNode resultNode, JsonNode requestNode, Long courseId, String graphType, String operator)
+    {
+        String graphName = defaultText(resultNode.path("graphTitle"), defaultText(requestNode.path("courseName"), "未命名知识图谱"));
+        String graphContent = writeJson(resultNode);
+        ZstpGraph existingGraph = findExistingGraph(courseId, graphType);
+
+        if (existingGraph != null)
+        {
+            existingGraph.setName(graphName);
+            existingGraph.setCourseId(courseId);
+            existingGraph.setGraphType(graphType);
+            existingGraph.setContent(graphContent);
+            existingGraph.setUpdateBy(operator);
+            zstpGraphService.updateZstpGraph(existingGraph);
+            return existingGraph.getId();
+        }
 
         ZstpGraph zstpGraph = new ZstpGraph();
-        zstpGraph.setName(defaultText(resultNode.path("graphTitle"), defaultText(requestNode.path("courseName"), "未命名知识图谱")));
+        zstpGraph.setName(graphName);
         zstpGraph.setCourseId(courseId);
-        zstpGraph.setGraphType(defaultText(requestNode.path("graphType"), "0"));
-        zstpGraph.setContent(writeJson(resultNode));
-        zstpGraph.setCreateBy(createBy);
+        zstpGraph.setGraphType(graphType);
+        zstpGraph.setContent(graphContent);
+        zstpGraph.setCreateBy(operator);
+        return zstpGraphService.insertZstpGraph(zstpGraph);
+    }
 
-        Long graphId = zstpGraphService.insertZstpGraph(zstpGraph);
-        saveNodes(graphId, resultNode.path("nodes"));
-        return graphId;
+    private ZstpGraph findExistingGraph(Long courseId, String graphType)
+    {
+        if (courseId == null)
+        {
+            return null;
+        }
+
+        ZstpGraph query = new ZstpGraph();
+        query.setCourseId(courseId);
+        query.setGraphType(graphType);
+        List<ZstpGraphVo> graphList = zstpGraphService.selectZstpGraphList(query);
+        if (graphList == null || graphList.isEmpty())
+        {
+            return null;
+        }
+        return graphList.get(0);
+    }
+
+    private void replaceNodes(Long graphId, JsonNode nodesNode)
+    {
+        clearGraphNodes(graphId);
+        saveNodes(graphId, nodesNode);
+    }
+
+    private void clearGraphNodes(Long graphId)
+    {
+        if (graphId == null)
+        {
+            return;
+        }
+
+        ZstpNode query = new ZstpNode();
+        query.setGraphId(graphId);
+        List<ZstpNode> existingNodes = zstpNodeService.selectZstpNodeList(query);
+        if (existingNodes == null || existingNodes.isEmpty())
+        {
+            return;
+        }
+
+        Long[] nodeIds = existingNodes.stream().map(ZstpNode::getId).distinct().toArray(Long[]::new);
+        zstpNodeService.deleteZstpNodeByIds(nodeIds);
+    }
+
+    private void clearGraphs(Long courseId, String graphType)
+    {
+        ZstpGraph query = new ZstpGraph();
+        query.setCourseId(courseId);
+        query.setGraphType(graphType);
+        List<ZstpGraphVo> graphList = zstpGraphService.selectZstpGraphList(query);
+        if (graphList == null || graphList.isEmpty())
+        {
+            return;
+        }
+
+        Long[] graphIds = graphList.stream().map(ZstpGraph::getId).distinct().toArray(Long[]::new);
+        zstpGraphService.deleteZstpGraphByIds(graphIds);
+    }
+
+    private String normalizeParentId(String parentId)
+    {
+        if (StringUtils.isBlank(parentId) || "0".equals(parentId))
+        {
+            return "root";
+        }
+        return parentId;
+    }
+
+    private String extractNodeContent(JsonNode node, String defaultValue)
+    {
+        String[] fieldCandidates = { "content", "context", "description", "summary" };
+        for (String field : fieldCandidates)
+        {
+            String value = defaultText(node.path(field), null);
+            if (StringUtils.isNotBlank(value))
+            {
+                return value;
+            }
+        }
+        return defaultValue;
+    }
+
+    private void sleepQuietly(long millis)
+    {
+        try
+        {
+            TimeUnit.MILLISECONDS.sleep(millis);
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            throw new ServiceException("等待知识图谱生成结果时被中断");
+        }
     }
 
     private void saveNodes(Long graphId, JsonNode nodesNode)
@@ -228,6 +537,12 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
             url = url + "/" + taskId;
         }
         return url;
+    }
+
+    private String buildDeepCardUrl()
+    {
+        String baseUrl = StringUtils.stripEnd(knowledgeAgentProperties.getBaseUrl(), "/");
+        return baseUrl + "/api/v1/knowledge-agent/deep-card";
     }
 
     private String defaultText(JsonNode node, String defaultValue)

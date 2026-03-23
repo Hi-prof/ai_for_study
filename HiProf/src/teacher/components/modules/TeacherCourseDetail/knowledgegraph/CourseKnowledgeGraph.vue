@@ -115,6 +115,7 @@
           :node="selectedNode"
           :related-nodes="[]"
           :course-id="courseId"
+          :course-name="courseName"
           @close="handleNodeEditClose"
           @save="handleNodeEditSave"
           @cancel="handleNodeEditClose"
@@ -128,10 +129,10 @@
         <WorkspaceIcon name="knowledgeGraph" :size="34" />
       </div>
       <h3 class="empty-title">暂无知识图谱</h3>
-      <p class="empty-description">点击"生成图谱"按钮创建课程知识图谱</p>
+      <p class="empty-description">通过后端 AI 生成接口创建并更新课程知识图谱</p>
       <button class="btn btn-primary" @click="generateGraph" :disabled="loading">
         <i class="generate-icon"></i>
-        {{ loading ? '正在生成...' : '生成知识图谱' }}
+        {{ loading ? '正在跳转...' : 'AI 生成知识图谱' }}
       </button>
     </div>
 
@@ -148,9 +149,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, onMounted, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
-import { getCourseKnowledgeGraphList, createKnowledgeGraph, getKnowledgeGraphNodes, createNode, updateNode } from '@/api/graph';
+import { getCourseKnowledgeGraphList, updateNode } from '@/api/graph';
 import { getNodeDetail } from '@/api/node';
 import { getCourseById } from '@/api/courses';
 import KnowledgeGraphSettingsDialog from './KnowledgeGraphSettingsDialog.vue';
@@ -177,11 +178,10 @@ const emit = defineEmits(['refresh']);
 const loading = ref(false);
 const knowledgeGraphList = ref([]);
 const currentKnowledgeGraph = ref(null);
-const autoCreatedCourseId = ref(null);
-const iframeKey = ref(0); // 用于强制重新加载iframe
 const showSettingsDialog = ref(false); // 设置对话框显示状态
 const showNodeEditDialog = ref(false); // 节点编辑面板显示状态
 const selectedNode = ref(null); // 当前选中的节点
+const courseName = ref('课程知识图谱');
 const treeLayoutRef = ref(null); // TreeLayoutComponent引用
 const centerLayoutRef = ref(null); // CenterLayoutComponent引用
 const bidirectionalTreeLayoutRef = ref(null); // BidirectionalTreeLayoutComponent引用
@@ -199,8 +199,23 @@ const graphSettings = ref({
   enableAnimation: true
 });
 
+const loadCourseInfo = async () => {
+  try {
+    const courseResponse = await getCourseById(props.courseId);
+    if (courseResponse?.data?.name) {
+      courseName.value = courseResponse.data.name;
+    } else if (courseResponse?.courseData?.name) {
+      courseName.value = courseResponse.courseData.name;
+    } else if (courseResponse?.name) {
+      courseName.value = courseResponse.name;
+    }
+  } catch (error) {
+    console.warn('获取课程信息失败，使用默认课程名称:', error);
+  }
+};
+
 // 获取课程知识图谱列表
-const loadKnowledgeGraphList = async ({ allowAutoCreate = true } = {}) => {
+const loadKnowledgeGraphList = async () => {
   try {
     const response = await getCourseKnowledgeGraphList(props.courseId);
 
@@ -211,10 +226,6 @@ const loadKnowledgeGraphList = async ({ allowAutoCreate = true } = {}) => {
       if (knowledgeGraphList.value.length > 0) {
         currentKnowledgeGraph.value = knowledgeGraphList.value[0];
         await loadGraphData();
-      } else if (allowAutoCreate && autoCreatedCourseId.value !== String(props.courseId)) {
-        // 如果没有知识图谱，创建默认的知识图谱
-        autoCreatedCourseId.value = String(props.courseId);
-        await createDefaultKnowledgeGraph();
       } else {
         currentKnowledgeGraph.value = null;
       }
@@ -230,93 +241,6 @@ const loadKnowledgeGraphList = async ({ allowAutoCreate = true } = {}) => {
   }
 };
 
-// 创建默认知识图谱
-const createDefaultKnowledgeGraph = async () => {
-  try {
-    const defaultGraphData = {
-      courseId: props.courseId,
-      graphType: "0", // 知识图谱类型
-      name: "课程知识图谱",
-      content: "这是系统自动生成的课程知识图谱，展示了课程的知识结构和关联关系。",
-      remark: "系统自动创建的默认知识图谱"
-    };
-
-    const createResponse = await createKnowledgeGraph(defaultGraphData);
-
-    if (createResponse) {
-      // 重新加载知识图谱列表
-      await loadKnowledgeGraphList({ allowAutoCreate: false });
-      return createResponse;
-    } else {
-      throw new Error(createResponse?.msg || '创建默认知识图谱失败');
-    }
-  } catch (error) {
-    console.error('创建默认知识图谱失败:', error);
-    throw error;
-  }
-};
-
-// 检查并创建根节点（如果知识图谱没有节点）
-const checkAndCreateRootNode = async () => {
-  if (!currentKnowledgeGraph.value) {
-    console.warn('没有当前知识图谱，无法检查节点');
-    return;
-  }
-
-  try {
-    // 检查知识图谱是否已有节点
-    const nodesResponse = await getKnowledgeGraphNodes(currentKnowledgeGraph.value.id);
-    const nodes = nodesResponse?.rows || [];
-
-    console.log(`知识图谱 ${currentKnowledgeGraph.value.id} 当前节点数量:`, nodes.length);
-
-    // 如果没有节点，自动创建根节点
-    if (nodes.length === 0) {
-      console.log('知识图谱没有节点，开始创建根节点...');
-
-      // 获取课程信息以获取课程名称
-      let courseName = '课程知识图谱'; // 默认名称
-      try {
-        const courseResponse = await getCourseById(props.courseId);
-        // 从多个可能的位置提取课程名称
-        if (courseResponse?.data?.name) {
-          courseName = courseResponse.data.name;
-        } else if (courseResponse?.courseData?.name) {
-          courseName = courseResponse.courseData.name;
-        } else if (courseResponse?.name) {
-          courseName = courseResponse.name;
-        }
-        console.log('获取到课程名称:', courseName);
-      } catch (error) {
-        console.warn('获取课程信息失败，使用默认名称:', error);
-      }
-
-      // 创建根节点
-      const rootNodeData = {
-        name: courseName,
-        content: `${courseName}的知识结构图`,
-        parentId: null, // 根节点没有父节点
-        graphId: currentKnowledgeGraph.value.id
-      };
-
-      console.log('正在创建根节点:', rootNodeData);
-      const createResponse = await createNode(rootNodeData);
-
-      if (createResponse && !createResponse.error) {
-        console.log('根节点创建成功:', createResponse);
-        // 强制重新加载iframe以显示新创建的节点
-        iframeKey.value += 1;
-        await nextTick();
-      } else {
-        console.error('根节点创建失败:', createResponse);
-      }
-    }
-  } catch (error) {
-    console.error('检查或创建根节点失败:', error);
-    // 即使失败也不影响主要功能，只记录错误
-  }
-};
-
 // 加载知识图谱数据
 const loadGraphData = async () => {
   if (!currentKnowledgeGraph.value) {
@@ -326,60 +250,11 @@ const loadGraphData = async () => {
 
   loading.value = true;
   try {
-    // 图谱可视化将通过iframe加载，这里只需要确认数据存在
-    // 检查并创建根节点（如果需要）
-    await checkAndCreateRootNode();
+    await nextTick();
   } catch (error) {
     console.error('加载知识图谱数据失败:', error);
   } finally {
     loading.value = false;
-  }
-};
-
-// 获取图谱URL（兼容Hash路由）
-const getGraphUrl = () => {
-  if (!currentKnowledgeGraph.value) {
-    return '';
-  }
-  
-  // 基于域名/IP判断是否为生产环境（更可靠的方法）
-  const hostname = window.location.hostname;
-  const isProduction = hostname !== 'localhost' && hostname !== '127.0.0.1' && hostname !== '0.0.0.0';
-  
-  // 生产环境强制使用hash路由
-  const baseUrl = isProduction ? '/#/graph' : '/graph';
-  const params = `embedded=true&courseId=${props.courseId}&graphId=${currentKnowledgeGraph.value.id}&t=${Date.now()}`;
-  
-
-  return `${baseUrl}?${params}`;
-};
-
-// iframe加载完成回调
-const onGraphIframeLoad = () => {
-  // iframe加载完成
-};
-
-// iframe错误处理
-const handleIframeError = (event) => {
-  console.error('知识图谱iframe加载错误:', event);
-  console.error('错误的URL:', getGraphUrl());
-  console.error('当前页面URL:', window.location.href);
-  
-  // 尝试用不同的URL格式重新加载
-  alert(`图谱加载失败，URL: ${getGraphUrl()}\n请检查控制台了解详情，然后重试`);
-  
-  setTimeout(() => {
-    iframeKey.value += 1;
-  }, 1000);
-};
-
-// 监听全屏状态变化
-const handleFullscreenChange = () => {
-  // 当退出全屏时，确保页面状态正常
-  if (!document.fullscreenElement) {
-    setTimeout(() => {
-      iframeKey.value += 1;
-    }, 100);
   }
 };
 
@@ -540,8 +415,6 @@ const handleNodeEditSave = async (nodeData) => {
 // 刷新知识图谱数据
 const refreshKnowledgeGraph = async () => {
   await loadKnowledgeGraphList();
-  // 强制重新加载iframe
-  iframeKey.value += 1;
   await nextTick();
   emit('refresh');
 };
@@ -555,17 +428,7 @@ defineExpose({
 
 // 生成知识图谱（空状态下的按钮）
 const generateGraph = async () => {
-  loading.value = true;
-
-  try {
-    // 创建默认知识图谱
-    await createDefaultKnowledgeGraph();
-  } catch (error) {
-    console.error('生成知识图谱失败:', error);
-    alert('生成知识图谱失败，请重试');
-  } finally {
-    loading.value = false;
-  }
+  aiSmartGenerate();
 };
 
 // 监听路由变化，当从AI生成页面返回时刷新数据
@@ -582,21 +445,8 @@ watch(() => router.currentRoute.value.path, (newPath, oldPath) => {
 // 组件挂载时加载数据
 onMounted(() => {
   // 自动加载知识图谱列表
+  loadCourseInfo();
   loadKnowledgeGraphList();
-
-  // 监听全屏状态变化
-  document.addEventListener('fullscreenchange', handleFullscreenChange);
-  document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-  document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-  document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-});
-
-// 组件卸载时清理事件监听
-onUnmounted(() => {
-  document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-  document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-  document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
 });
 </script>
 

@@ -63,45 +63,21 @@ export function useChapterManagement(courseId) {
     }));
   };
 
-  // 确保课程有章节，如果没有则创建默认章节
-  const ensureCourseHasChapters = async () => {
+  // 获取课程章节，不再自动创建默认章节
+  const fetchCourseChapters = async () => {
     try {
-
-      // 查询当前课程的章节
       const response = await getCourseChapterList(courseId);
-
-      // 检查响应数据
       if (response && response.rows && response.rows.length > 0) {
         return response.rows;
       }
 
-      // 如果提取失败但有原始响应数据，记录详细信息
       if (response && response.extractionFailed && response.originalResponse) {
         console.error('数据提取失败，原始响应数据:', response.originalResponse);
         console.error('请检查后端API响应格式是否发生变化');
       }
-
-      // 如果没有章节，创建默认章节
-      const defaultChapterData = {
-        courseId: courseId,
-        graphType: "1",
-        name: "第一章 课程介绍",
-        content: "这是默认创建的第一章内容，请根据实际需要进行修改。",
-        remark: "系统自动创建的默认章节"
-      };
-
-      const createResponse = await createChapter(defaultChapterData);
-
-      if (createResponse && !createResponse.error) {
-        // 重新查询章节列表
-        const newResponse = await getCourseChapterList(courseId);
-        return newResponse.rows || [];
-      } else {
-        throw new Error(createResponse?.msg || '创建默认章节失败');
-      }
-
+      return [];
     } catch (error) {
-      console.error('确保课程有章节时发生错误:', error);
+      console.error('获取课程章节时发生错误:', error);
       throw error;
     }
   };
@@ -111,8 +87,7 @@ export function useChapterManagement(courseId) {
     loading.value = true;
     try {
 
-      // 确保课程有章节，如果没有则创建默认章节
-      const zstpList = await ensureCourseHasChapters();
+      const zstpList = await fetchCourseChapters();
 
       // 将知识图谱数据转换为章节格式（包含按创建时间排序）
       chapters.value = convertZstpToChapters(zstpList);

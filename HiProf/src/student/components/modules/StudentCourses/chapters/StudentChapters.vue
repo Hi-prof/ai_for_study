@@ -54,7 +54,7 @@
             <StudentChapterFileList
               :course-id="courseId"
               :node-name="chapter.title || chapter.name"
-              :node-id="null"
+              :node-id="chapter.id"
               @file-change="handleChapterFileChange"
             />
           </div>
@@ -319,7 +319,6 @@ defineExpose({
   padding-top: 1rem;
 }
 </style>
-
 
 
 
