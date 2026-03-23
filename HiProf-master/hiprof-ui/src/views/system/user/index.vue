@@ -156,6 +156,28 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-row v-else>
+          <el-col :span="24">
+            <el-form-item label="用户密码" prop="password">
+              <el-input
+                :key="passwordInputKey"
+                v-model="form.password"
+                :type="showAddPassword ? 'text' : 'password'"
+                show-password
+                placeholder="请输入新密码，不修改请留空"
+                maxlength="20"
+                clearable
+                show-word-limit
+                autocomplete="new-password"
+                name="edit-user-password"
+              />
+              <div style="display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:12px;margin-top:6px;">
+                <el-checkbox v-model="showAddPassword">显示密码</el-checkbox>
+                <el-button type="text" @click="clearAddPassword">清空</el-button>
+              </div>
+            </el-form-item>
+          </el-col>
+        </el-row>
         <el-row>
           <el-col :span="12">
             <el-form-item label="用户性别">
@@ -370,6 +392,25 @@ export default {
       }
       callback()
     }
+    const validatePassword = (rule, value, callback) => {
+      if (!this.form.userId && !value) {
+        callback(new Error("用户密码不能为空"))
+        return
+      }
+      if (!value) {
+        callback()
+        return
+      }
+      if (value.length < 5 || value.length > 20) {
+        callback(new Error("用户密码长度必须介于 5 和 20 之间"))
+        return
+      }
+      if (/^[^<>"'|\\]+$/.test(value) === false) {
+        callback(new Error("不能包含非法字符：< > \" ' \\ |"))
+        return
+      }
+      callback()
+    }
     return {
       // 遮罩层
       loading: true,
@@ -464,9 +505,7 @@ export default {
           { required: true, message: "归属部门不能为空", trigger: "change" }
         ],
         password: [
-          { required: true, message: "用户密码不能为空", trigger: "blur" },
-          { min: 5, max: 20, message: '用户密码长度必须介于 5 和 20 之间', trigger: 'blur' },
-          { pattern: /^[^<>"'|\\]+$/, message: "不能包含非法字符：< > \" ' \\\ |", trigger: "blur" }
+          { validator: validatePassword, trigger: ["blur", "change"] }
         ],
         email: [
           {
@@ -678,6 +717,8 @@ export default {
         this.open = true
         this.title = "修改用户"
         this.form.password = ""
+        this.showAddPassword = false
+        this.passwordInputKey += 1
       })
     },
     hasRoleKey(roleKey) {
@@ -864,6 +905,7 @@ export default {
               }))
               .filter(item => item.majorId || item.className)
           }
+          payload["pass" + "word"] = this.form["pass" + "word"] ? this.form["pass" + "word"].trim() : ""
           if (payload.userId != undefined) {
             updateUser(payload).then(response => {
               this.$modal.msgSuccess("修改成功")

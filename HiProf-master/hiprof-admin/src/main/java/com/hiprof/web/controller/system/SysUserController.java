@@ -24,6 +24,7 @@ import com.hiprof.common.core.domain.entity.SysRole;
 import com.hiprof.common.core.domain.entity.SysUser;
 import com.hiprof.common.core.page.TableDataInfo;
 import com.hiprof.common.enums.BusinessType;
+import com.hiprof.common.utils.DateUtils;
 import com.hiprof.common.utils.SecurityUtils;
 import com.hiprof.common.utils.StringUtils;
 import com.hiprof.common.utils.poi.ExcelUtil;
@@ -211,6 +212,11 @@ public class SysUserController extends BaseController
             return error("修改用户'" + user.getUserName() + "'失败，邮箱账号已存在");
         }
         user.setUpdateBy(getUsername());
+        if (StringUtils.isNotEmpty(user.getPassword()))
+        {
+            user.setPassword(SecurityUtils.encryptPassword(user.getPassword()));
+            user.setPwdUpdateDate(DateUtils.getNowDate());
+        }
         int rows = userService.updateUser(user);
         studentClassBindingService.syncStudentBinding(user.getUserId(), user.getRoleIds(), user.getStudentMajorId(), user.getStudentClassName());
         teacherClassBindingService.syncTeacherBindings(user.getUserId(), user.getRoleIds(), user.getTeacherClassBindings());
