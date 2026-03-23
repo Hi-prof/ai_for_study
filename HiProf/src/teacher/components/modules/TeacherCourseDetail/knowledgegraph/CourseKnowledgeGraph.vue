@@ -151,6 +151,7 @@
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { getCourseKnowledgeGraphList, createKnowledgeGraph, getKnowledgeGraphNodes, createNode, updateNode } from '@/api/graph';
+import { getNodeDetail } from '@/api/node';
 import { getCourseById } from '@/api/courses';
 import KnowledgeGraphSettingsDialog from './KnowledgeGraphSettingsDialog.vue';
 import TreeLayoutComponent from './TreeLayoutComponent.vue';
@@ -456,18 +457,24 @@ const handleSettingsUpdated = (newSettings) => {
 };
 
 // 处理树形布局节点点击
-const handleTreeNodeClick = (node) => {
+const handleTreeNodeClick = async (node) => {
   console.log('CourseKnowledgeGraph: 树形节点点击:', node);
 
-  // 设置选中的节点数据，适配NodeDetailPanel的数据结构
+  let detailContent = node.data?.content || '';
+  try {
+    const detail = await getNodeDetail(node.id);
+    detailContent = detail?.content || detailContent;
+  } catch (error) {
+    console.warn('获取节点详情失败，使用当前节点数据回显:', error);
+  }
+
   selectedNode.value = {
     id: node.id,
     name: node.text || '',
     text: node.text || '',
-    content: node.data?.content || ''
+    content: detailContent
   };
 
-  // 显示节点编辑面板
   showNodeEditDialog.value = true;
 };
 

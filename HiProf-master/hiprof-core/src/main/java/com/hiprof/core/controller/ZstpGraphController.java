@@ -3,7 +3,9 @@ package com.hiprof.core.controller;
 import java.util.List;
 
 import com.hiprof.common.core.domain.model.LoginUser;
+import com.hiprof.core.domain.dto.KnowledgeGraphGenerateRequest;
 import com.hiprof.core.domain.vo.ZstpGraphVo;
+import com.hiprof.core.service.IKnowledgeAgentService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -41,6 +43,9 @@ public class ZstpGraphController extends BaseController
 {
     @Autowired
     private IZstpGraphService zstpGraphService;
+
+    @Autowired
+    private IKnowledgeAgentService knowledgeAgentService;
 
     /**
      * 查询知识图谱列表
@@ -90,6 +95,31 @@ public class ZstpGraphController extends BaseController
     ) {
         zstpGraph.setCreateBy(loginUser.getUserId().toString());
         return toAjax(zstpGraphService.insertZstpGraph(zstpGraph));
+    }
+
+    @Operation(summary = "提交知识图谱智能体生成任务")
+    @PostMapping("/agent/tasks")
+    public AjaxResult createAgentTask(@RequestBody KnowledgeGraphGenerateRequest request)
+    {
+        return success(knowledgeAgentService.createTask(request));
+    }
+
+    @Operation(summary = "查询知识图谱智能体任务状态")
+    @GetMapping("/agent/tasks/{taskId}")
+    public AjaxResult getAgentTask(@PathVariable("taskId") String taskId)
+    {
+        return success(knowledgeAgentService.getTask(taskId));
+    }
+
+    @Operation(summary = "保存知识图谱智能体生成结果")
+    @PostMapping("/agent/tasks/{taskId}/persist")
+    public AjaxResult persistAgentTask(
+            @PathVariable("taskId") String taskId,
+            @AuthenticationPrincipal LoginUser loginUser
+    )
+    {
+        Long graphId = knowledgeAgentService.persistTaskResult(taskId, loginUser.getUserId().toString());
+        return AjaxResult.success("知识图谱保存成功", graphId);
     }
 
     /**

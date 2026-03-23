@@ -24,16 +24,17 @@
         <ResultDisplay
           v-model="generatedResult"
           :original-value="originalResult"
+          :readonly-result="true"
+          :is-generating="aiGenerationService?.isGenerating || false"
           :is-exporting="exportController?.isExporting || false"
           :export-progress="exportController?.exportProgress || 0"
           :export-progress-text="exportController?.exportProgressText || ''"
-          :text-node-parser-ref="nodeCreationService?.textNodeParserRef"
-          :selected-parent-node-id="selectedParentNodeId"
-          :available-parent-nodes="knowledgeGraphManager?.availableParentNodes || []"
-          :is-loading-nodes="knowledgeGraphManager?.isLoadingNodes || false"
+          :text-node-parser-ref="null"
+          :selected-parent-node-id="''"
+          :available-parent-nodes="[]"
+          :is-loading-nodes="false"
           @reset="handleReset"
           @export="handleExport"
-          @update:selected-parent-node-id="selectedParentNodeId = $event"
         />
       </template>
     </ResizableLayout>
@@ -41,6 +42,8 @@
     <!-- 服务组件 -->
     <AiGenerationService
       ref="aiGenerationService"
+      :course-id="courseId"
+      :course-name="courseName"
       @generation-start="onGenerationStart"
       @generation-progress="onGenerationProgress"
       @generation-success="onGenerationSuccess"
@@ -52,16 +55,7 @@
       ref="knowledgeGraphManager"
       :course-id="courseId"
       @course-info-loaded="onCourseInfoLoaded"
-      @parent-nodes-loaded="onParentNodesLoaded"
       @operation-error="onOperationError"
-    />
-
-    <NodeCreationService
-      ref="nodeCreationService"
-      @node-creation-progress="onNodeCreationProgress"
-      @node-creation-result="onNodeCreationResult"
-      @node-creation-complete="onNodeCreationComplete"
-      @node-creation-error="onNodeCreationError"
     />
 
     <ExportController
@@ -87,8 +81,8 @@ import ResultDisplay from '../ResultDisplay.vue';
 import ResizableLayout from '../ResizableLayout.vue';
 import AiGenerationService from './AiGenerationService.vue';
 import KnowledgeGraphManager from './KnowledgeGraphManager.vue';
-import NodeCreationService from './NodeCreationService.vue';
 import ExportController from './ExportController.vue';
+import { persistKnowledgeAgentTask } from '@/api/graph';
 
 // 定义props
 const props = defineProps({
@@ -107,7 +101,6 @@ const router = useRouter();
 // 组件引用
 const aiGenerationService = ref(null);
 const knowledgeGraphManager = ref(null);
-const nodeCreationService = ref(null);
 const exportController = ref(null);
 
 // 响应式数据
@@ -115,8 +108,9 @@ const graphRequirements = ref('');
 const generatedResult = ref('');
 const originalResult = ref('');
 const isResultModified = ref(false);
-const selectedParentNodeId = ref('');
 const courseName = ref('');
+const latestTaskId = ref('');
+const latestTaskResult = ref(null);
 
 // 返回上一页
 const goBack = () => {
@@ -125,16 +119,16 @@ const goBack = () => {
 
 // 获取节点数量
 const getNodeCount = () => {
-  if (!generatedResult.value.trim() || !nodeCreationService.value) {
+  if (!generatedResult.value.trim() || !aiGenerationService.value) {
     return 0;
   }
-  return nodeCreationService.value.getNodeCount(generatedResult.value);
+  return aiGenerationService.value.getNodeCount();
 };
 
 // 处理生成请求
-const handleGenerate = () => {
+const handleGenerate = (payload) => {
   if (aiGenerationService.value) {
-    aiGenerationService.value.generateKnowledgeGraph(graphRequirements.value);
+    aiGenerationService.value.generateKnowledgeGraph(payload);
   }
 };
 
@@ -159,12 +153,12 @@ const handleReset = () => {
 // 处理导出
 const handleExport = () => {
   if (!generatedResult.value.trim()) {
-    alert('没有可创建的内容');
+    alert('没有可保存的知识图谱结果');
     return;
   }
 
-  if (!props.courseId) {
-    alert('缺少课程ID，无法创建知识图谱节点');
+  if (!latestTaskId.value) {
+    alert('请先完成一次AI生成，再保存到知识图谱');
     return;
   }
 
@@ -175,25 +169,23 @@ const handleExport = () => {
 
 // AI生成服务事件处理
 const onGenerationStart = () => {
-  console.log('开始流式生成知识图谱...');
+  latestTaskId.value = '';
+  latestTaskResult.value = null;
+  console.log('开始提交知识图谱智能体任务...');
 };
 
 const onGenerationProgress = (data) => {
-  // 实时更新显示的结果
   generatedResult.value = data.accumulated;
-  console.log(`流式生成进度 - 长度: ${data.length}, 新内容: ${data.chunk.substring(0, 50)}...`);
-  
-  // 可以在这里添加更多的进度处理逻辑，比如：
-  // - 更新进度条
-  // - 滚动到最新内容
-  // - 实时解析节点数量等
+  console.log('知识图谱任务进度:', data.stage, data.accumulated);
 };
 
 const onGenerationSuccess = (data) => {
   generatedResult.value = data.result;
   originalResult.value = data.original;
   isResultModified.value = false;
-  console.log('知识图谱流式生成完成，最终内容长度:', data.result.length);
+  latestTaskId.value = data.taskId || '';
+  latestTaskResult.value = data.taskResult || null;
+  console.log('知识图谱任务完成，节点数:', data.taskResult?.nodes?.length || 0);
 };
 
 const onGenerationError = (error) => {
@@ -209,36 +201,9 @@ const onCourseInfoLoaded = (name) => {
   courseName.value = name;
 };
 
-const onParentNodesLoaded = (nodes) => {
-  console.log('父节点列表已加载:', nodes.length, '个节点');
-};
-
 const onOperationError = (error) => {
   console.error('操作错误:', error);
   alert(error.message);
-};
-
-// 节点创建服务事件处理
-const onNodeCreationProgress = (data) => {
-  if (exportController.value) {
-    exportController.value.updateProgress(data.progress, data.message);
-  }
-};
-
-const onNodeCreationResult = (result) => {
-  console.log('节点创建结果:', result);
-};
-
-const onNodeCreationComplete = (results) => {
-  if (exportController.value) {
-    exportController.value.handleExportSuccess(results);
-  }
-};
-
-const onNodeCreationError = (error) => {
-  if (exportController.value) {
-    exportController.value.handleExportError(error);
-  }
 };
 
 // 导出控制器事件处理
@@ -248,29 +213,17 @@ const onExportStart = () => {
 
 const onExportConfirm = async (options) => {
   try {
-    // 确保知识图谱存在
-    const graphId = await knowledgeGraphManager.value.ensureKnowledgeGraph(options);
-    
-    // 如果选择替换现有知识图谱，先删除所有现有节点
-    if (options.replaceExisting) {
-      exportController.value.updateProgress(0, '正在删除现有知识图谱节点...');
-      await knowledgeGraphManager.value.deleteAllKnowledgeGraphNodes(
-        graphId,
-        (message) => exportController.value.updateProgress(0, message)
-      );
+    if (!latestTaskId.value) {
+      throw new Error('缺少任务ID，无法保存知识图谱');
     }
 
-    // 创建知识图谱节点
-    await nodeCreationService.value.createKnowledgeGraphNodes(
-      generatedResult.value,
-      graphId,
-      {
-        parentNodeId: selectedParentNodeId.value || null,
-        onProgress: (message) => {
-          exportController.value.updateProgress(0, message);
-        }
-      }
-    );
+    exportController.value.updateProgress(30, '正在将智能体结果保存到后端知识图谱...');
+    const persistResponse = await persistKnowledgeAgentTask(latestTaskId.value);
+    exportController.value.updateProgress(100, '知识图谱保存完成');
+    exportController.value.handleExportSuccess({
+      success: [persistResponse?.data || latestTaskResult.value || {}],
+      failed: []
+    });
 
   } catch (error) {
     console.error('导出确认处理失败:', error);

@@ -8,6 +8,27 @@
       </div>
     </div>
     <div class="panel-content">
+      <div v-if="isStructuredContent" class="agent-card-section">
+        <div class="content-header">
+          <h4>智能体知识卡片</h4>
+          <span v-if="structuredNode.isFocus" class="focus-badge">重点节点</span>
+        </div>
+        <div v-if="lightCardItems.length > 0" class="card-block">
+          <div class="card-block-title">轻卡片</div>
+          <div v-for="item in lightCardItems" :key="item.label" class="card-item">
+            <div class="card-item-label">{{ item.label }}</div>
+            <div class="card-item-value">{{ item.value }}</div>
+          </div>
+        </div>
+        <div v-if="deepCardItems.length > 0" class="card-block deep-block">
+          <div class="card-block-title">深卡片</div>
+          <div v-for="item in deepCardItems" :key="item.label" class="card-item">
+            <div class="card-item-label">{{ item.label }}</div>
+            <div class="card-item-value">{{ item.value }}</div>
+          </div>
+        </div>
+      </div>
+
       <div class="node-content">
         <div class="content-header">
           <h4>知识卡片</h4>
@@ -15,7 +36,7 @@
             <span class="char-count" :class="{ 'over-limit': contentLength > 400 }">
               {{ contentLength }}/400字
             </span>
-            <button class="search-button" @click="searchContent">
+            <button v-if="!isStructuredContent" class="search-button" @click="searchContent">
               AI搜索
             </button>
           </div>
@@ -23,7 +44,8 @@
         <textarea 
           v-model="content" 
           class="content-editor"
-          placeholder="请输入知识点内容..."
+          :readonly="isStructuredContent"
+          :placeholder="isStructuredContent ? '该节点内容由智能体结构化生成，请在上方查看卡片详情。' : '请输入知识点内容...'"
         ></textarea>
         <div v-if="isSearching" class="search-loading">
           <div class="loading-spinner search-spinner"></div>
@@ -141,6 +163,7 @@ const {
 // Component state
 const title = ref('');
 const content = ref('');
+const rawContent = ref('');
 const isSearching = ref(false);
 const imageResult = ref<string | null>(null);
 const resources = ref<any[]>([]);
@@ -155,11 +178,71 @@ const nodeFiles = computed(() => {
   return getNodeFiles('节点文件', props.node.id);
 });
 
+const parseStructuredNode = (value: string) => {
+  if (!value || typeof value !== 'string') {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed === 'object' && (parsed.lightweightCard || parsed.deepCard || parsed.isFocus !== undefined)) {
+      return parsed;
+    }
+  } catch (error) {
+    return null;
+  }
+  return null;
+};
+
+const structuredNode = computed(() => parseStructuredNode(rawContent.value));
+const isStructuredContent = computed(() => !!structuredNode.value);
+
+const joinList = (value: unknown) => {
+  if (!Array.isArray(value)) {
+    return '';
+  }
+  return value.map(item => String(item)).filter(Boolean).join('、');
+};
+
+const buildDisplayItems = (items: Array<[string, string]>) => {
+  return items
+    .filter(([, value]) => value && String(value).trim())
+    .map(([label, value]) => ({ label, value }));
+};
+
+const lightCardItems = computed(() => {
+  const lightCard = structuredNode.value?.lightweightCard;
+  if (!lightCard) {
+    return [];
+  }
+  return buildDisplayItems([
+    ['定义', lightCard.definition || ''],
+    ['关键词', joinList(lightCard.keywords)],
+    ['示例', lightCard.example || ''],
+    ['关联知识', joinList(lightCard.relatedKnowledge)]
+  ]);
+});
+
+const deepCardItems = computed(() => {
+  const deepCard = structuredNode.value?.deepCard;
+  if (!deepCard) {
+    return [];
+  }
+  return buildDisplayItems([
+    ['详细定义', deepCard.detailedDefinition || ''],
+    ['核心特征', joinList(deepCard.coreFeatures)],
+    ['应用场景', joinList(deepCard.applicationScenarios)],
+    ['常见问题', joinList(deepCard.commonQuestions)],
+    ['关联说明', deepCard.relatedExplanation || ''],
+    ['参考内容', joinList(deepCard.references)]
+  ]);
+});
+
 // Watch for changes in the node prop
 watch(() => props.node, (newNode) => {
   if (newNode) {
     title.value = newNode.name || '';
-    content.value = newNode.content || '';
+    rawContent.value = newNode.content || '';
+    content.value = isStructuredContent.value ? '' : rawContent.value;
     resources.value = newNode.resources || [];
     imageResult.value = null; // Reset image result on node change
 
@@ -192,7 +275,7 @@ const saveChanges = () => {
   const saveData = {
     id: props.node.id,
     text: title.value,
-    content: content.value,
+    content: isStructuredContent.value ? rawContent.value : content.value,
   };
 
   console.log('准备发送的保存数据:', saveData);
@@ -395,4 +478,56 @@ onMounted(() => {
 
 <style scoped>
 @import '@/styles/node-detail-panel.css';
+
+.agent-card-section {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.focus-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.card-block + .card-block {
+  margin-top: 16px;
+}
+
+.card-block-title {
+  margin-bottom: 10px;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.card-item + .card-item {
+  margin-top: 10px;
+}
+
+.card-item-label {
+  margin-bottom: 4px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.card-item-value {
+  color: #1e293b;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.deep-block {
+  padding-top: 12px;
+  border-top: 1px solid #dbeafe;
+}
 </style> 

@@ -622,3 +622,58 @@ export {
   getOutlineNodesForKnowledgeNode,
   getKnowledgeGraphNodes
 };
+
+/**
+ * 提交知识图谱智能体生成任务
+ * @param {Object} payload 生成参数
+ * @returns {Promise<Object>} 任务信息
+ */
+export const createKnowledgeAgentTask = (payload) => {
+  return request({
+    url: '/core/zstp/agent/tasks',
+    method: 'post',
+    data: payload
+  }).then(response => {
+    ensureSuccessfulResponse(response, '提交知识图谱智能体任务失败');
+    return response;
+  }).catch(error => {
+    console.error('提交知识图谱智能体任务失败:', error);
+    return Promise.reject(error);
+  });
+};
+
+/**
+ * 查询知识图谱智能体任务状态
+ * @param {string} taskId 任务ID
+ * @returns {Promise<Object>} 任务详情
+ */
+export const getKnowledgeAgentTask = (taskId) => {
+  return request({
+    url: `/core/zstp/agent/tasks/${taskId}`,
+    method: 'get'
+  }).then(response => {
+    ensureSuccessfulResponse(response, '查询知识图谱智能体任务失败');
+    return response;
+  }).catch(error => {
+    console.error('查询知识图谱智能体任务失败:', error);
+    return Promise.reject(error);
+  });
+};
+
+/**
+ * 保存知识图谱智能体任务结果
+ * @param {string} taskId 任务ID
+ * @returns {Promise<Object>} 保存结果
+ */
+export const persistKnowledgeAgentTask = (taskId) => {
+  return request({
+    url: `/core/zstp/agent/tasks/${taskId}/persist`,
+    method: 'post'
+  }).then(response => {
+    ensureSuccessfulResponse(response, '保存知识图谱智能体结果失败');
+    return response;
+  }).catch(error => {
+    console.error('保存知识图谱智能体结果失败:', error);
+    return Promise.reject(error);
+  });
+};

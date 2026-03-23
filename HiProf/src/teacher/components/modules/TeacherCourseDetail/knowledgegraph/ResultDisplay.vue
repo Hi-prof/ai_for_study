@@ -37,7 +37,7 @@
       <div class="view-mode-header" v-if="modelValue.trim()">
         <label class="form-label">
           生成结果
-          <span class="editable-hint">（节点名称可编辑）</span>
+          <span class="editable-hint">{{ readonlyResult ? '（后端智能体生成结果预览）' : '（节点名称可编辑）' }}</span>
         </label>
         <div class="view-mode-toggle">
           <button
@@ -72,9 +72,9 @@
               <span class="node-number">{{ node.number }}</span>
               <span
                 class="node-title editable-title"
-                :contenteditable="true"
-                @blur="editNodeTitle(node.id, $event.target.textContent)"
-                @keydown.enter.prevent="$event.target.blur()"
+                :contenteditable="!readonlyResult"
+                @blur="!readonlyResult && editNodeTitle(node.id, $event.target.textContent)"
+                @keydown.enter.prevent="!readonlyResult && $event.target.blur()"
               >{{ node.title }}</span>
             </div>
           </div>
@@ -86,13 +86,14 @@
         <div class="form-group">
           <label class="form-label" v-if="!modelValue.trim()">
             生成结果
-            <span class="editable-hint">AI生成的知识图谱结构将显示在这里</span>
+            <span class="editable-hint">{{ readonlyResult ? '后端智能体生成结果将显示在这里' : 'AI生成的知识图谱结构将显示在这里' }}</span>
           </label>
           <textarea
             :value="modelValue"
             @input="handleTextInput"
             class="form-textarea large-textarea editable-result"
-            placeholder="AI生成的知识图谱结构将显示在这里，生成后可直接编辑修改..."
+            :readonly="readonlyResult"
+            :placeholder="readonlyResult ? '后端智能体生成的知识图谱预览将显示在这里...' : 'AI生成的知识图谱结构将显示在这里，生成后可直接编辑修改...'"
           ></textarea>
         </div>
       </div>
@@ -104,7 +105,7 @@
         <button
           class="btn btn-secondary"
           @click="handleReset"
-          :disabled="!modelValue.trim() || !isModified"
+          :disabled="readonlyResult || !modelValue.trim() || !isModified"
           title="重置为AI原始生成内容"
         >
           <i class="reset-icon"></i>
@@ -113,11 +114,11 @@
         <button
           class="btn btn-primary btn-large"
           @click="handleExport"
-          :disabled="!modelValue.trim() || isExporting"
+          :disabled="!modelValue.trim() || isExporting || isGenerating"
         >
           <i class="export-icon" v-if="!isExporting"></i>
           <i class="loading-icon" v-else></i>
-          {{ isExporting ? '正在创建节点...' : '导出为知识图谱' }}
+          {{ isExporting ? '正在保存知识图谱...' : '保存到知识图谱' }}
         </button>
       </div>
       <div class="edit-status" v-if="isModified">
@@ -175,6 +176,14 @@ const props = defineProps({
     default: () => []
   },
   isLoadingNodes: {
+    type: Boolean,
+    default: false
+  },
+  isGenerating: {
+    type: Boolean,
+    default: false
+  },
+  readonlyResult: {
     type: Boolean,
     default: false
   }
@@ -279,6 +288,9 @@ const updateGeneratedResultFromNodes = () => {
 
 // 处理文本输入
 const handleTextInput = (event) => {
+  if (props.readonlyResult) {
+    return;
+  }
   emit('update:modelValue', event.target.value);
 };
 
@@ -380,4 +392,3 @@ watch(() => props.textNodeParserRef, () => {
 <style scoped>
 @import '@/teacher/styles/ai-knowledge-graph-generator.css';
 </style>
-

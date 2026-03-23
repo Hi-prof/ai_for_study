@@ -132,13 +132,16 @@
           <el-col :span="24">
             <el-form-item label="初始密码" prop="password">
               <el-input
+                :key="passwordInputKey"
                 v-model="form.password"
                 :type="showAddPassword ? 'text' : 'password'"
+                show-password
                 placeholder="请输入初始密码，可直接修改默认值"
                 maxlength="20"
                 clearable
                 show-word-limit
                 autocomplete="new-password"
+                name="new-user-password"
               />
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:6px;">
                 <span style="color:#909399;font-size:12px;">
@@ -396,6 +399,8 @@ export default {
       initPassword: undefined,
       // 新增用户密码是否明文显示
       showAddPassword: false,
+      // 新增用户密码输入框刷新key
+      passwordInputKey: 0,
       // 日期范围
       dateRange: [],
       // 岗位选项
@@ -581,12 +586,14 @@ export default {
         teacherClassBindings: []
       }
       this.showAddPassword = false
+      this.passwordInputKey += 1
       this.studentClassOptions = []
       this.teacherClassOptionsMap = {}
       this.resetForm("form")
     },
     restoreInitPassword() {
       this.form.password = this.initPassword || ""
+      this.passwordInputKey += 1
       this.$nextTick(() => {
         if (this.$refs.form) {
           this.$refs.form.validateField("password")
@@ -595,6 +602,7 @@ export default {
     },
     clearAddPassword() {
       this.form.password = ""
+      this.passwordInputKey += 1
       this.$nextTick(() => {
         if (this.$refs.form) {
           this.$refs.form.validateField("password")
@@ -643,6 +651,7 @@ export default {
         this.title = "添加用户"
         this.form.password = this.initPassword
         this.showAddPassword = false
+        this.passwordInputKey += 1
         this.$set(this.form, "teacherClassBindings", [])
       })
     },

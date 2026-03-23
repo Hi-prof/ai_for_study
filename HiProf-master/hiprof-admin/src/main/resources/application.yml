@@ -166,3 +166,10 @@ xss:
   excludes: /system/notice,/channel/chat
   # 匹配链接
   urlPatterns: /system/*,/monitor/*,/tool/*
+
+knowledge-agent:
+  enabled: ${KNOWLEDGE_AGENT_ENABLED:true}
+  base-url: ${KNOWLEDGE_AGENT_BASE_URL:http://127.0.0.1:18081}
+  task-path: ${KNOWLEDGE_AGENT_TASK_PATH:/api/v1/knowledge-agent/tasks}
+  connect-timeout: ${KNOWLEDGE_AGENT_CONNECT_TIMEOUT:5000}
+  read-timeout: ${KNOWLEDGE_AGENT_READ_TIMEOUT:120000}
