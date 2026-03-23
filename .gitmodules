@@ -1,0 +1,6 @@
+[submodule "HiProf"]
+	path = HiProf
+	url = https://github.com/Hi-prof/hiprof-ui.git
+[submodule "HiProf-master"]
+	path = HiProf-master
+	url = https://github.com/Hi-prof/HiProf-master.git
