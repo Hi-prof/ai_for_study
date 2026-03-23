@@ -1,0 +1,48 @@
+/* 水平树形布局专用样式 - 更长的水平长方形节点，3:1比例 */
+.layout-horizontal-tree .rel-node,
+.layout-horizontal-tree .rel-node-peel,
+.layout-horizontal-tree .rel-node-peel-checked,
+.layout-horizontal-tree .rel-nodediv {
+  border-radius: 8px !important;
+  width: 150px !important;  /* 更长的节点宽度，3:1比例 */
+  height: 50px !important;  /* 保持较小的高度 */
+}
+
+.layout-horizontal-tree .rel-node > *,
+.layout-horizontal-tree .rel-node-peel > *,
+.layout-horizontal-tree .rel-nodediv > * {
+  border-radius: 8px !important;
+}
+
+/* 水平树形布局节点悬停效果 */
+.layout-horizontal-tree .rel-node:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 190, 201, 0.3);
+}
+
+/* 水平树形布局连线样式 */
+.layout-horizontal-tree .rel-line {
+  stroke-width: 2px;
+  stroke: rgba(0, 186, 189, 0.8);
+}
+
+.layout-horizontal-tree .rel-line:hover {
+  stroke-width: 3px;
+  stroke: rgba(0, 186, 189, 1);
+}
+
+/* 水平树形布局文本样式 - 增大字体 */
+.layout-horizontal-tree .c-node-text,
+.layout-horizontal-tree .rel-node-text,
+.layout-horizontal-tree .rel-node .c-node-text,
+.layout-horizontal-tree .rel-node text {
+  font-size: 16px !important;  /* 增大字体到16px */
+  font-weight: 500 !important;  /* 增加字体粗细 */
+  line-height: 1.2 !important;
+  text-align: center !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 6px 10px !important;  /* 增加内边距以适应更大的字体 */
+  color: #1f2937 !important;  /* 确保文字颜色清晰 */
+}

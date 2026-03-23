@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hiprof.core.mapper.ClScoreSummariesMapper">
+    
+    <resultMap type="ClScoreSummaries" id="ClScoreSummariesResult">
+        <result property="id"    column="id"    />
+        <result property="studentId"    column="student_id"    />
+        <result property="courseId"    column="course_id"    />
+        <result property="regularScore"    column="regular_score"    />
+        <result property="extraScore"    column="extra_score"    />
+        <result property="penaltyScore"    column="penalty_score"    />
+        <result property="totalScore"    column="total_score"    />
+        <result property="ranking"    column="ranking"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+    </resultMap>
+
+    <sql id="selectClScoreSummariesVo">
+        select  student_id, course_id, regular_score, extra_score, penalty_score, total_score, create_time, update_time from cl_score_summaries
+    </sql>
+
+    <select id="selectClScoreSummariesList" parameterType="ClScoreSummaries" resultMap="ClScoreSummariesResult">
+        <include refid="selectClScoreSummariesVo"/>
+        <where>  
+            <if test="studentId != null "> and student_id = #{studentId}</if>
+            <if test="courseId != null "> and course_id = #{courseId}</if>
+        </where>
+    </select>
+    
+    <select id="selectClScoreSummariesById" parameterType="Long" resultMap="ClScoreSummariesResult">
+        <include refid="selectClScoreSummariesVo"/>
+        where id = #{id}
+    </select>
+
+
+    <insert id="insertClScoreSummaries" parameterType="ClScoreSummaries" useGeneratedKeys="true" keyProperty="id">
+        insert into cl_score_summaries
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="studentId != null">student_id,</if>
+            <if test="courseId != null">course_id,</if>
+            <if test="regularScore != null">regular_score,</if>
+            <if test="extraScore != null">extra_score,</if>
+            <if test="penaltyScore != null">penalty_score,</if>
+            <if test="totalScore != null">total_score,</if>
+            <if test="updateTime != null">update_time,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="studentId != null">#{studentId},</if>
+            <if test="courseId != null">#{courseId},</if>
+            <if test="regularScore != null">#{regularScore},</if>
+            <if test="extraScore != null">#{extraScore},</if>
+            <if test="penaltyScore != null">#{penaltyScore},</if>
+            <if test="totalScore != null">#{totalScore},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+         </trim>
+         WHERE NOT EXISTS (
+             SELECT 1 FROM cl_score_summaries
+             WHERE student_id = #{studentId} AND course_id = #{courseId}
+         )
+    </insert>
+
+    <update id="updateClScoreSummaries" parameterType="ClScoreSummaries">
+        update cl_score_summaries
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="studentId != null">student_id = #{studentId},</if>
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="regularScore != null">regular_score = #{regularScore},</if>
+            <if test="extraScore != null">extra_score = #{extraScore},</if>
+            <if test="penaltyScore != null">penalty_score = #{penaltyScore},</if>
+            <if test="totalScore != null">total_score = #{totalScore},</if>
+            <if test="ranking != null">ranking = #{ranking},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteClScoreSummariesById" parameterType="Long">
+        delete from cl_score_summaries where id = #{id}
+    </delete>
+    <delete id="deleteClScoreSummariesByCourseId" parameterType="Long">
+        delete from cl_score_summaries where course_id = #{courseId}
+    </delete>
+
+    <delete id="deleteClScoreSummariesByIds" parameterType="String">
+        delete from cl_score_summaries where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+
+    <update id="mathScoreSummaries"  parameterType="ClScoreSummaries">
+        UPDATE cl_score_summaries ss
+        SET
+            regular_score = (
+                SELECT SUM(sr.score * si.item_weight)
+                FROM cl_score_records sr
+                         JOIN cl_score_items si ON sr.item_id = si.id
+                WHERE sr.student_id = ss.student_id
+                  AND sr.course_id = ss.course_id
+                  AND si.item_type = 'regular'
+            ),
+            extra_score = (
+                SELECT COALESCE(SUM(score), 0)
+                FROM cl_score_records sr
+                         JOIN cl_score_items si ON sr.item_id = si.id
+                WHERE sr.student_id = ss.student_id
+                  AND sr.course_id = ss.course_id
+                  AND si.item_type = 'extra'
+            ),
+            penalty_score = (
+                SELECT COALESCE(SUM(score), 0)
+                FROM cl_score_records sr
+                         JOIN cl_score_items si ON sr.item_id = si.id
+                WHERE sr.student_id = ss.student_id
+                  AND sr.course_id = ss.course_id
+                  AND si.item_type = 'penalty'
+            ),
+            total_score = regular_score + extra_score + penalty_score,
+            update_time = CURRENT_TIMESTAMP
+        WHERE course_id = #{courseId}
+              <if test="studentId != null">
+          AND student_id = #{studentId}
+        </if>
+    </update>
+
+    <update id="updateScoreSummariesRanking">
+        UPDATE cl_score_summaries ss
+            JOIN (
+            SELECT
+            student_id,
+            course_id,
+            RANK() OVER (PARTITION BY course_id ORDER BY total_score DESC) AS ranking
+            FROM cl_score_summaries
+            WHERE course_id = #{courseId}
+            ) ranks ON ss.student_id = ranks.student_id AND ss.course_id = ranks.course_id
+            SET ss.ranking = ranks.ranking
+        WHERE ss.course_id = #{courseId};
+    </update>
+
+    <insert id="initScoreSummariesByCourseId" parameterType="Long">
+        insert into cl_score_summaries (student_id, course_id, regular_score, extra_score, penalty_score, total_score)
+        select user_id as student_id , course_id, 0, 0, 0, 0
+        from cl_course_members
+        where course_id = #{courseId} AND member_role = '1'
+    </insert>
+
+
+</mapper>

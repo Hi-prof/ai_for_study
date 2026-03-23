@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hiprof.core.mapper.ChatMessagesMapper">
+    
+    <resultMap type="ChatMessages" id="ChatMessagesResult">
+        <result property="id"    column="id"    />
+        <result property="sessionId"    column="session_id"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="content"    column="content"    />
+        <result property="contentType"    column="content_type"    />
+        <result property="fileUrl"    column="file_url"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+    </resultMap>
+
+    <sql id="selectChatMessagesVo">
+        select id, session_id, create_by, content, content_type, file_url, create_time, update_time from chat_messages
+    </sql>
+
+    <select id="selectChatMessagesList" parameterType="ChatMessages" resultMap="ChatMessagesResult">
+        <include refid="selectChatMessagesVo"/>
+        <where>  
+            <if test="sessionId != null "> and session_id = #{sessionId}</if>
+            <if test="createBy != null "> and create_by = #{createBy}</if>
+            <if test="contentType != null  and contentType != ''"> and content_type = #{contentType}</if>
+            <if test="createTime != null "> and create_time = #{createTime}</if>
+            <if test="updateTime != null "> and update_time = #{updateTime}</if>
+        </where>
+    </select>
+    
+    <select id="selectChatMessagesById" parameterType="Long" resultMap="ChatMessagesResult">
+        <include refid="selectChatMessagesVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertChatMessages" parameterType="ChatMessages" useGeneratedKeys="true" keyProperty="id">
+        insert into chat_messages
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="sessionId != null">session_id,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="content != null and content != ''">content,</if>
+            <if test="contentType != null">content_type,</if>
+            <if test="fileUrl != null">file_url,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="sessionId != null">#{sessionId},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="content != null and content != ''">#{content},</if>
+            <if test="contentType != null">#{contentType},</if>
+            <if test="fileUrl != null">#{fileUrl},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+         </trim>
+    </insert>
+
+    <update id="updateChatMessages" parameterType="ChatMessages">
+        update chat_messages
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="sessionId != null">session_id = #{sessionId},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="content != null and content != ''">content = #{content},</if>
+            <if test="contentType != null">content_type = #{contentType},</if>
+            <if test="fileUrl != null">file_url = #{fileUrl},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteChatMessagesById" parameterType="Long">
+        delete from chat_messages where id = #{id}
+    </delete>
+
+    <delete id="deleteChatMessagesByIds" parameterType="String">
+        delete from chat_messages where id in 
+        <foreach item="id" collection="ids" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteChatMessagesBySessionIds" parameterType="String">
+        delete from chat_messages where session_id in
+        <foreach item="id" collection="ids" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

@@ -1,0 +1,70 @@
+:root {
+  /* 基础字体大小 - 支持浏览器缩放 */
+  font-size: 16px; /* 1rem = 16px at 100% zoom */
+
+  /* 颜色 */
+  --primary-color: #3498db;
+  --secondary-color: #2ecc71;
+  --accent-color: #9b59b6;
+  --text-color: #333333;
+  --text-light: #666666;
+  --text-lighter: #999999;
+  --background-color: #ffffff;
+  --background-light: #f5f5f5;
+  --border-color: #e0e0e0;
+  --success-color: #2ecc71;
+  --warning-color: #f39c12;
+  --error-color: #e74c3c;
+  --info-color: #3498db;
+
+  /* 字体系统 - 使用rem单位支持缩放 */
+  --font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-family-heading: 'PingFang SC', 'Microsoft YaHei', serif;
+  --font-size-xs: 0.75rem;    /* 12px */
+  --font-size-small: 0.875rem; /* 14px */
+  --font-size-normal: 1rem;    /* 16px */
+  --font-size-medium: 1.125rem; /* 18px */
+  --font-size-large: 1.25rem;  /* 20px */
+  --font-size-xlarge: 1.5rem;  /* 24px */
+  --font-size-xxlarge: 2rem;   /* 32px */
+  --font-size-xxxlarge: 2.5rem; /* 40px */
+
+  /* 响应式间距系统 - 使用rem单位 */
+  --spacing-xxs: 0.125rem;  /* 2px */
+  --spacing-xs: 0.25rem;    /* 4px */
+  --spacing-sm: 0.5rem;     /* 8px */
+  --spacing-md: 1rem;       /* 16px */
+  --spacing-lg: 1.5rem;     /* 24px */
+  --spacing-xl: 2rem;       /* 32px */
+  --spacing-xxl: 3rem;      /* 48px */
+  --spacing-xxxl: 4rem;     /* 64px */
+
+  /* 圆角 - 使用rem单位 */
+  --border-radius-sm: 0.25rem;  /* 4px */
+  --border-radius-md: 0.5rem;   /* 8px */
+  --border-radius-lg: 0.75rem;  /* 12px */
+  --border-radius-xl: 1rem;     /* 16px */
+  --border-radius-round: 50%;
+
+  /* 阴影 - 使用rem单位 */
+  --shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  --shadow-xl: 0 1rem 2rem rgba(0, 0, 0, 0.2);
+
+  /* 过渡 */
+  --transition-fast: 0.2s;
+  --transition-normal: 0.3s;
+  --transition-slow: 0.5s;
+
+  /* 响应式布局 - 使用rem和相对单位 */
+  --header-height: 3.75rem;        /* 60px */
+  --footer-height: 5rem;           /* 80px */
+  --sidebar-width: 15rem;          /* 240px */
+  --container-max-width: 75rem;    /* 1200px */
+
+  /* 轮播图响应式高度 */
+  --carousel-height-mobile: 20rem;   /* 320px */
+  --carousel-height-tablet: 28.125rem; /* 450px */
+  --carousel-height-desktop: 31.25rem; /* 500px */
+}

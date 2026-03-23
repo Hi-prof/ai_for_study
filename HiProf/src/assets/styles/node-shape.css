@@ -1,0 +1,20 @@
+/* 布局特定的节点样式 - 导入布局管理器 */
+@import './layouts/layout-manager.css';
+
+/* 默认节点样式重置 */
+.rel-node,
+.rel-node-peel,
+.rel-node-peel-checked,
+.rel-nodediv {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 清除默认样式 */
+.rel-node > *,
+.rel-node-peel > *,
+.rel-nodediv > * {
+  box-sizing: border-box;
+}

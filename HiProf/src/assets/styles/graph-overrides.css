@@ -1,0 +1,4 @@
+/* Override for knowledge graph node selection style */
+.rel-node-checked {
+  border-radius: 8px !important;
+}

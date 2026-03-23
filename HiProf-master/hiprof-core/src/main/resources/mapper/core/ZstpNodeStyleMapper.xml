@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hiprof.core.mapper.ZstpNodeStyleMapper">
+    
+    <resultMap type="ZstpNodeStyle" id="ZstpNodeStyleResult">
+        <result property="id"    column="id"    />
+        <result property="nodeId"    column="node_id"    />
+        <result property="type"    column="type"    />
+        <result property="color"    column="color"    />
+        <result property="nodeShape"    column="node_shape"    />
+        <result property="width"    column="width"    />
+        <result property="height"    column="height"    />
+        <result property="borderWidth"    column="border_width"    />
+        <result property="borderHeight"    column="border_height"    />
+        <result property="fixed"    column="fixed"    />
+        <result property="x"    column="x"    />
+        <result property="y"    column="y"    />
+        <result property="fontColor"    column="fontColor"    />
+    </resultMap>
+
+    <sql id="selectZstpNodeStyleVo">
+        select id, node_id, type, color, node_shape, width, height, border_width, border_height, fixed, x, y, fontColor from zstp_node_style
+    </sql>
+
+    <select id="selectZstpNodeStyleList" parameterType="ZstpNodeStyle" resultMap="ZstpNodeStyleResult">
+        <include refid="selectZstpNodeStyleVo"/>
+        <where>  
+            <if test="nodeId != null "> and node_id = #{nodeId}</if>
+            <if test="type != null  and type != ''"> and type = #{type}</if>
+            <if test="color != null  and color != ''"> and color = #{color}</if>
+            <if test="nodeShape != null "> and node_shape = #{nodeShape}</if>
+            <if test="width != null "> and width = #{width}</if>
+            <if test="height != null "> and height = #{height}</if>
+            <if test="borderWidth != null "> and border_width = #{borderWidth}</if>
+            <if test="borderHeight != null "> and border_height = #{borderHeight}</if>
+            <if test="fixed != null  and fixed != ''"> and fixed = #{fixed}</if>
+            <if test="x != null "> and x = #{x}</if>
+            <if test="y != null "> and y = #{y}</if>
+            <if test="fontColor != null  and fontColor != ''"> and fontColor = #{fontColor}</if>
+        </where>
+    </select>
+    
+    <select id="selectZstpNodeStyleById" parameterType="Long" resultMap="ZstpNodeStyleResult">
+        <include refid="selectZstpNodeStyleVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertZstpNodeStyle" parameterType="ZstpNodeStyle" useGeneratedKeys="true" keyProperty="id">
+        insert into zstp_node_style
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="nodeId != null">node_id,</if>
+            <if test="type != null">type,</if>
+            <if test="color != null">color,</if>
+            <if test="nodeShape != null">node_shape,</if>
+            <if test="width != null">width,</if>
+            <if test="height != null">height,</if>
+            <if test="borderWidth != null">border_width,</if>
+            <if test="borderHeight != null">border_height,</if>
+            <if test="fixed != null">fixed,</if>
+            <if test="x != null">x,</if>
+            <if test="y != null">y,</if>
+            <if test="fontColor != null">fontColor,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="nodeId != null">#{nodeId},</if>
+            <if test="type != null">#{type},</if>
+            <if test="color != null">#{color},</if>
+            <if test="nodeShape != null">#{nodeShape},</if>
+            <if test="width != null">#{width},</if>
+            <if test="height != null">#{height},</if>
+            <if test="borderWidth != null">#{borderWidth},</if>
+            <if test="borderHeight != null">#{borderHeight},</if>
+            <if test="fixed != null">#{fixed},</if>
+            <if test="x != null">#{x},</if>
+            <if test="y != null">#{y},</if>
+            <if test="fontColor != null">#{fontColor},</if>
+         </trim>
+    </insert>
+
+    <update id="updateZstpNodeStyle" parameterType="ZstpNodeStyle">
+        update zstp_node_style
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="nodeId != null">node_id = #{nodeId},</if>
+            <if test="type != null">type = #{type},</if>
+            <if test="color != null">color = #{color},</if>
+            <if test="nodeShape != null">node_shape = #{nodeShape},</if>
+            <if test="width != null">width = #{width},</if>
+            <if test="height != null">height = #{height},</if>
+            <if test="borderWidth != null">border_width = #{borderWidth},</if>
+            <if test="borderHeight != null">border_height = #{borderHeight},</if>
+            <if test="fixed != null">fixed = #{fixed},</if>
+            <if test="x != null">x = #{x},</if>
+            <if test="y != null">y = #{y},</if>
+            <if test="fontColor != null">fontColor = #{fontColor},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteZstpNodeStyleById" parameterType="Long">
+        delete from zstp_node_style where id = #{id}
+    </delete>
+
+    <delete id="deleteZstpNodeStyleByIds" parameterType="String">
+        delete from zstp_node_style where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteZstpNodeStyleByNodeIds" >
+        delete from zstp_node_style where node_id in
+        <foreach item="nodeId" collection="ids" open="(" separator="," close=")">
+            #{nodeId}
+        </foreach>
+    </delete>
+</mapper>

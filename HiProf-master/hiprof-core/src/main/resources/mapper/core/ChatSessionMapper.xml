@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hiprof.core.mapper.ChatSessionMapper">
+    
+    <resultMap type="ChatSession" id="ChatSessionResult">
+        <result property="id"    column="id"    />
+        <result property="name"    column="name"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+    </resultMap>
+
+    <sql id="selectChatSessionVo">
+        select id, name, create_by, create_time, update_time from chat_session
+    </sql>
+
+    <select id="selectChatSessionList" parameterType="ChatSession" resultMap="ChatSessionResult">
+        <include refid="selectChatSessionVo"/>
+        <where>  
+            <if test="name != null  and name != ''"> and name like concat('%', #{name}, '%')</if>
+            <if test="createBy != null "> and create_by = #{createBy}</if>
+            <if test="createTime != null "> and create_time = #{createTime}</if>
+            <if test="updateTime != null "> and update_time = #{updateTime}</if>
+        </where>
+    </select>
+    
+    <select id="selectChatSessionById" parameterType="Long" resultMap="ChatSessionResult">
+        <include refid="selectChatSessionVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertChatSession" parameterType="ChatSession" useGeneratedKeys="true" keyProperty="id">
+        insert into chat_session
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="name != null and name != ''">name,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="name != null and name != ''">#{name},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+         </trim>
+    </insert>
+
+    <update id="updateChatSession" parameterType="ChatSession">
+        update chat_session
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteChatSessionById" parameterType="Long">
+        delete from chat_session where id = #{id}
+    </delete>
+
+    <delete id="deleteChatSessionByIds" parameterType="String">
+        delete from chat_session where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <select id="selectPrivateSession" parameterType="Long" >
+        SELECT s.id
+        FROM chat_session s
+        WHERE c.name = ''
+          AND EXISTS (
+            SELECT 1 FROM chat_members cm
+            WHERE cm.session_id = s.id AND cm.user_id = fromId
+        )
+          AND EXISTS (
+            SELECT 1 FROM chat_members cm
+            WHERE cm.session_id = s.id AND cm.user_id = toId
+        )
+            LIMIT 1;
+    </select>
+</mapper>

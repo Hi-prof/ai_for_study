@@ -1,0 +1,75 @@
+<svg width="300" height="180" viewBox="0 0 300 180" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景渐变 - Glassmorphism风格 -->
+  <defs>
+    <linearGradient id="bg3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:rgba(255,255,255,0.25);stop-opacity:1" />
+      <stop offset="50%" style="stop-color:rgba(125,211,252,0.15);stop-opacity:1" />
+      <stop offset="100%" style="stop-color:rgba(255,255,255,0.22);stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="circle3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:rgba(255,255,255,0.4);stop-opacity:1" />
+      <stop offset="100%" style="stop-color:rgba(255,255,255,0.25);stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="battery" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:rgba(125,211,252,0.4);stop-opacity:1" />
+      <stop offset="100%" style="stop-color:rgba(255,255,255,0.3);stop-opacity:1" />
+    </linearGradient>
+    <filter id="blur3">
+      <feGaussianBlur stdDeviation="1"/>
+    </filter>
+  </defs>
+  
+  <!-- 背景 -->
+  <rect width="300" height="180" fill="url(#bg3)" rx="20"/>
+  <rect width="300" height="180" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1" rx="20"/>
+  
+  <!-- 毛玻璃背景层 -->
+  <rect x="20" y="20" width="260" height="140" fill="rgba(255,255,255,0.1)" rx="16" filter="url(#blur3)"/>
+  
+  <!-- 电池图标表示精力 -->
+  <rect x="125" y="72" width="48" height="23" fill="url(#circle3)" rx="3" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <rect x="128" y="75" width="40" height="17" fill="url(#battery)" rx="2"/>
+  <rect x="173" y="79" width="3" height="7" fill="rgba(255,255,255,0.4)" rx="1"/>
+  
+  <!-- 精力管理的四个维度 -->
+  <circle cx="80" cy="60" r="14" fill="url(#circle3)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <text x="80" y="66" text-anchor="middle" fill="rgba(0,0,0,0.7)" font-size="10" font-weight="500">体力</text>
+  
+  <circle cx="220" cy="60" r="14" fill="url(#circle3)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <text x="220" y="66" text-anchor="middle" fill="rgba(0,0,0,0.7)" font-size="10" font-weight="500">脑力</text>
+  
+  <circle cx="80" cy="120" r="14" fill="url(#circle3)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <text x="80" y="126" text-anchor="middle" fill="rgba(0,0,0,0.7)" font-size="10" font-weight="500">情绪</text>
+  
+  <circle cx="220" cy="120" r="14" fill="url(#circle3)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <text x="220" y="126" text-anchor="middle" fill="rgba(0,0,0,0.7)" font-size="10" font-weight="500">意志</text>
+  
+  <!-- 连接到中心电池的线 -->
+  <line x1="94" y1="66" x2="125" y2="79" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+  <line x1="206" y1="66" x2="173" y2="79" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+  <line x1="94" y1="114" x2="125" y2="89" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+  <line x1="206" y1="114" x2="173" y2="89" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+  
+  <!-- 时间管理图标 -->
+  <circle cx="50" cy="145" r="9" fill="rgba(255,255,255,0.4)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <line x1="50" y1="140" x2="50" y2="145" stroke="rgba(0,0,0,0.5)" stroke-width="1"/>
+  <line x1="50" y1="145" x2="53" y2="148" stroke="rgba(0,0,0,0.5)" stroke-width="1"/>
+  
+  <!-- 平衡图标 -->
+  <rect x="240" y="147" width="18" height="2" fill="rgba(255,255,255,0.4)"/>
+  <circle cx="244" cy="144" r="2.5" fill="rgba(125,211,252,0.4)"/>
+  <circle cx="254" cy="144" r="2.5" fill="rgba(255,255,255,0.4)"/>
+  
+  <!-- 能量波纹效果 -->
+  <circle cx="150" cy="83" r="55" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1" opacity="0.5"/>
+  <circle cx="150" cy="83" r="68" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1" opacity="0.3"/>
+  
+  <!-- 标题 -->
+  <text x="150" y="25" text-anchor="middle" fill="rgba(0,0,0,0.8)" font-size="14" font-weight="600">精力管理</text>
+  
+  <!-- 装饰光斑 -->
+  <circle cx="40" cy="40" r="8" fill="rgba(125,211,252,0.2)" filter="url(#blur3)"/>
+  <circle cx="260" cy="40" r="10" fill="rgba(255,255,255,0.25)" filter="url(#blur3)"/>
+  <circle cx="30" cy="150" r="6" fill="rgba(125,211,252,0.15)" filter="url(#blur3)"/>
+  <circle cx="270" cy="150" r="6" fill="rgba(255,255,255,0.2)" filter="url(#blur3)"/>
+</svg> 

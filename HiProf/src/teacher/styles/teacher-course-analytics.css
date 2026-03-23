@@ -1,0 +1,1072 @@
+/* 学情分析样式 */
+.course-analytics {
+  background-color: var(--background-color, #ffffff);
+  min-height: 400px;
+}
+
+/* 加载状态 */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: var(--text-secondary, #6b7280);
+}
+
+.loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid var(--border-color, #e5e7eb);
+  border-top: 2px solid var(--primary-color, #6366f1);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 错误和无数据状态 */
+.error-message, .no-data-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  text-align: center;
+}
+
+.error-message {
+  color: var(--error-color, #ef4444);
+}
+
+.no-data-message {
+  color: var(--text-secondary, #6b7280);
+}
+
+.no-data-message h3 {
+  margin: 1rem 0 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+/* 页面标题 */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  background-color: var(--background-color, #ffffff);
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-color, #1f2937);
+  margin: 0;
+}
+
+.section-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* 按钮样式 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+  text-decoration: none;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: var(--primary-color, #6366f1);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-color-dark, #4f46e5);
+}
+
+.btn-secondary {
+  background-color: var(--background-secondary, #f3f4f6);
+  color: var(--text-color, #1f2937);
+  border: 1px solid var(--border-color, #e5e7eb);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--background-hover, #e5e7eb);
+}
+
+.btn-link {
+  background: none;
+  color: var(--primary-color, #6366f1);
+  border: none;
+  padding: 0.25rem 0.5rem;
+}
+
+.btn-link:hover {
+  text-decoration: underline;
+}
+
+.btn-secondary {
+  background-color: var(--background-color-secondary, #f3f4f6);
+  color: var(--text-color, #374151);
+  border-color: var(--border-color, #d1d5db);
+}
+
+.btn-secondary:hover {
+  background-color: var(--background-color-tertiary, #e5e7eb);
+}
+
+/* 总体统计 */
+.overview-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  padding: 1.5rem;
+  background-color: var(--background-color-secondary, #f9fafb);
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid;
+}
+
+.stat-card.primary {
+  border-left-color: #6366f1;
+}
+
+.stat-card.success {
+  border-left-color: #10b981;
+}
+
+.stat-card.warning {
+  border-left-color: #f59e0b;
+}
+
+.stat-card.info {
+  border-left-color: #06b6d4;
+}
+
+.stat-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-card.primary .stat-icon {
+  background-color: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+}
+
+.stat-card.success .stat-icon {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.stat-card.warning .stat-icon {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.stat-card.info .stat-icon {
+  background-color: rgba(6, 182, 212, 0.1);
+  color: #06b6d4;
+}
+
+.stat-content {
+  flex: 1;
+}
+
+.stat-number {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-color, #1f2937);
+  margin-bottom: 0.25rem;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: var(--text-color-secondary, #6b7280);
+}
+
+/* 分析图表网格 */
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  padding: 1.5rem;
+}
+
+.analytics-card {
+  background-color: white;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  background-color: var(--background-color-secondary, #f9fafb);
+}
+
+.card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-color, #1f2937);
+  margin: 0;
+}
+
+.card-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.time-select, .score-select {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  background-color: white;
+}
+
+.card-content {
+  padding: 1.5rem;
+}
+
+/* 图表占位符 */
+.chart-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  background-color: var(--background-color-secondary, #f9fafb);
+  border: 2px dashed var(--border-color, #d1d5db);
+  border-radius: 0.5rem;
+  color: var(--text-color-secondary, #6b7280);
+  margin-bottom: 1rem;
+}
+
+.chart-icon {
+  width: 3rem;
+  height: 3rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3E%3Cpath d='M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z' /%3E%3C/svg%3E");
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  margin-bottom: 0.5rem;
+}
+
+/* 进度摘要 */
+.progress-summary {
+  display: flex;
+  justify-content: space-around;
+  gap: 1rem;
+}
+
+.summary-item {
+  text-align: center;
+}
+
+.summary-label {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--text-color-secondary, #6b7280);
+  margin-bottom: 0.25rem;
+}
+
+.summary-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.summary-value.success {
+  color: #10b981;
+}
+
+.summary-value.warning {
+  color: #f59e0b;
+}
+
+.summary-value.danger {
+  color: #ef4444;
+}
+
+/* 成绩分布 */
+.score-distribution {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.distribution-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.grade-range {
+  min-width: 5rem;
+  font-size: 0.875rem;
+  color: var(--text-color-secondary, #6b7280);
+}
+
+.grade-bar {
+  flex: 1;
+  height: 1.5rem;
+  background-color: var(--background-color-secondary, #f3f4f6);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.grade-fill {
+  height: 100%;
+  border-radius: 0.75rem;
+  transition: width 0.3s ease;
+}
+
+/* 新增样式 - 评分项目分析 */
+.analytics-data {
+  padding: 1.5rem;
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.analytics-card.full-width {
+  grid-column: 1 / -1;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  background-color: var(--background-secondary, #f9fafb);
+}
+
+.card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-color, #1f2937);
+  margin: 0;
+}
+
+.card-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.card-content {
+  padding: 1.5rem;
+}
+
+/* 评分项目列表 */
+.no-items-message, .no-students-message {
+  text-align: center;
+  color: var(--text-secondary, #6b7280);
+  padding: 2rem;
+}
+
+.items-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.item-card {
+  padding: 1rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 0.5rem;
+  background-color: var(--background-color, #ffffff);
+  transition: all 0.2s;
+}
+
+.item-card:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.item-card.item-type-regular {
+  border-left: 4px solid var(--primary-color, #6366f1);
+}
+
+.item-card.item-type-extra {
+  border-left: 4px solid var(--success-color, #10b981);
+}
+
+.item-card.item-type-penalty {
+  border-left: 4px solid var(--error-color, #ef4444);
+}
+
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.item-name {
+  font-weight: 600;
+  color: var(--text-color, #1f2937);
+}
+
+.item-type-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.item-type-badge.regular {
+  background-color: rgba(99, 102, 241, 0.1);
+  color: var(--primary-color, #6366f1);
+}
+
+.item-type-badge.extra {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: var(--success-color, #10b981);
+}
+
+.item-type-badge.penalty {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: var(--error-color, #ef4444);
+}
+
+.item-details {
+  display: flex;
+  gap: 1rem;
+}
+
+.item-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #6b7280);
+}
+
+.stat-value {
+  font-weight: 600;
+  color: var(--text-color, #1f2937);
+}
+
+/* 成绩分布 */
+.score-distribution {
+  display: grid;
+  gap: 1rem;
+}
+
+.distribution-item {
+  display: grid;
+  grid-template-columns: 80px 1fr 100px;
+  align-items: center;
+  gap: 1rem;
+}
+
+.grade-range {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-color, #1f2937);
+}
+
+.grade-bar {
+  height: 1.5rem;
+  background-color: var(--background-secondary, #f3f4f6);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.grade-fill.excellent {
+  background-color: var(--success-color, #10b981);
+}
+
+.grade-fill.good {
+  background-color: var(--primary-color, #6366f1);
+}
+
+.grade-fill.average {
+  background-color: var(--warning-color, #f59e0b);
+}
+
+.grade-fill.poor {
+  background-color: var(--error-color, #ef4444);
+}
+
+.grade-fill.fail {
+  background-color: var(--error-color-dark, #dc2626);
+}
+
+.grade-count {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #6b7280);
+  text-align: right;
+}
+
+/* 学生表格 */
+.students-table {
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.table-header, .table-row {
+  display: grid;
+  /* 排名 | 学生 | 常规分 | 额外分 | 扣分 | 操作 | 总分 */
+  grid-template-columns: 60px 1fr 80px 80px 80px 80px 100px;
+  align-items: center;
+}
+
+.table-header {
+  background-color: var(--background-secondary, #f9fafb);
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.header-cell {
+  padding: 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-color, #1f2937);
+  text-align: left;
+}
+
+.header-cell.rank,
+.header-cell.regular-score,
+.header-cell.extra-score,
+.header-cell.penalty-score,
+.header-cell.total-score,
+.header-cell.actions {
+  text-align: center;
+}
+
+.table-body {
+  background-color: var(--background-color, #ffffff);
+}
+
+.table-row {
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  transition: background-color 0.2s;
+}
+
+.table-row:last-child {
+  border-bottom: none;
+}
+
+.table-row:hover {
+  background-color: var(--background-hover, #f9fafb);
+}
+
+.table-row.top-performer {
+  background-color: rgba(99, 102, 241, 0.05);
+}
+
+.table-cell {
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  font-size: 0.875rem;
+}
+
+.table-cell.rank,
+.table-cell.regular-score,
+.table-cell.extra-score,
+.table-cell.penalty-score,
+.table-cell.total-score,
+.table-cell.actions {
+  justify-content: center;
+}
+
+.rank-number {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  background-color: var(--background-secondary, #f3f4f6);
+  color: var(--text-secondary, #6b7280);
+}
+
+.rank-number.first {
+  background-color: #ffd700;
+  color: #b45309;
+}
+
+.rank-number.second {
+  background-color: #c0c0c0;
+  color: #6b7280;
+}
+
+.rank-number.third {
+  background-color: #cd7f32;
+  color: #ffffff;
+}
+
+.student-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.student-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.student-name {
+  font-weight: 600;
+  color: var(--text-color, #1f2937);
+}
+
+.student-id {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #6b7280);
+}
+
+.score-value {
+  font-weight: 700;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.score-value.extra {
+  color: var(--success-color, #10b981);
+}
+
+.score-value.penalty {
+  color: var(--error-color, #ef4444);
+}
+
+.score-value.total.excellent {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: var(--success-color, #10b981);
+}
+
+.score-value.total.good {
+  background-color: rgba(99, 102, 241, 0.1);
+  color: var(--primary-color, #6366f1);
+}
+
+.score-value.total.average {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: var(--warning-color, #f59e0b);
+}
+
+.score-value.total.poor, .score-value.total.fail {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: var(--error-color, #ef4444);
+}
+
+.action-btn {
+  padding: 0.5rem;
+  border: none;
+  background: none;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  background-color: var(--primary-color-light, #e0e7ff);
+  color: var(--primary-color, #6366f1);
+}
+
+/* 搜索框 */
+.search-box {
+  position: relative;
+}
+
+.search-input {
+  padding: 0.5rem 2.5rem 0.5rem 1rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  width: 200px;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--primary-color, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.search-icon {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary, #6b7280);
+}
+
+/* 选择框 */
+.item-type-select, .score-item-select {
+  padding: 0.5rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  background-color: var(--background-color, #ffffff);
+}
+
+.item-type-select:focus, .score-item-select:focus {
+  outline: none;
+  border-color: var(--primary-color, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* ========== 模态框样式 - ScoreItemEditor ========== */
+
+/* 确保模态框内的按钮样式不被覆盖 */
+.editor-modal-overlay .btn {
+  box-sizing: border-box !important;
+}
+
+/* 模态框遮罩层 - 柔和渐进式背景 */
+.editor-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.1)),
+              rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* 主模态框 - 简洁统一设计 */
+.editor-modal {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e5e7eb;
+  width: 90%;
+  max-width: 850px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideInUp 0.3s ease-out;
+}
+
+/* 模态框标题栏 - 统一简洁设计 */
+.editor-modal .modal-title-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem 1rem;
+  background: transparent;
+}
+
+.editor-modal .modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+  color: #1f2937;
+}
+
+/* 关闭按钮 - 简洁设计 */
+.editor-modal .close-btn {
+  background: none;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 1.125rem;
+  color: #6b7280;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.editor-modal .close-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #374151;
+}
+
+/* 主要内容区域 - 统一背景 */
+.editor-modal .modal-main {
+  padding: 0 2rem 2rem;
+  background: transparent;
+}
+
+/* 网格布局 - 简洁间距 */
+.editor-modal .item-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1fr 1fr 100px;
+  column-gap: 1rem;
+  row-gap: 1rem;
+  align-items: center;
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 1.5rem;
+  border: 1px solid #e5e7eb;
+}
+
+/* 表头样式 - 简洁设计 */
+.editor-modal .item-grid > span[class^="header-"] {
+  color: #6b7280;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.5rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* 表单元素 - 简洁设计 */
+.editor-modal .form-input, 
+.editor-modal .form-select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  background: white;
+  transition: border-color 0.2s ease;
+}
+
+.editor-modal .form-input:focus, 
+.editor-modal .form-select:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.editor-modal .form-input:hover, 
+.editor-modal .form-select:hover {
+  border-color: #9ca3af;
+}
+
+/* 编辑器模态框专用按钮样式 */
+.editor-modal .btn {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* 危险按钮 - 简洁红色 */
+.editor-modal .btn-danger {
+  background: #ef4444;
+  color: white;
+  border-color: #dc2626;
+  min-width: 80px;
+}
+
+.editor-modal .btn-danger:hover {
+  background: #dc2626;
+}
+
+/* 主要按钮 - 简洁蓝色 */
+.editor-modal .btn-primary {
+  background: #6366f1;
+  color: white;
+  border-color: #4f46e5;
+}
+
+.editor-modal .btn-primary:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.editor-modal .btn-primary:disabled {
+  background: #9ca3af;
+  border-color: #6b7280;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* 次要按钮 - 简洁灰色 */
+.editor-modal .btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+  border-color: #d1d5db;
+}
+
+.editor-modal .btn-secondary:hover {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+}
+
+/* 下拉选择器 - 简洁设计 */
+.editor-modal .form-select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1em 1em;
+  padding-right: 2.5rem;
+  cursor: pointer;
+}
+
+/* 百分比输入框 - 简洁设计 */
+.editor-modal .input-with-percent {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.editor-modal .input-with-percent .form-input {
+  padding-right: 2rem;
+}
+
+.editor-modal .input-with-percent span {
+  position: absolute;
+  right: 0.75rem;
+  color: #6b7280;
+  font-weight: 500;
+  pointer-events: none;
+  font-size: 0.875rem;
+}
+
+/* 隐藏数字输入框箭头 */
+.editor-modal input[type=number]::-webkit-inner-spin-button,
+.editor-modal input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.editor-modal input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* 模态框操作区域 - 统一简洁设计 */
+.editor-modal .modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+/* 权重总结 - 简化设计 */
+.editor-modal .weight-summary {
+  text-align: center;
+  padding: 1rem;
+  background: rgba(99, 102, 241, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: #4338ca;
+}
+
+.editor-modal .invalid-weight {
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.05);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.editor-modal .weight-warning {
+  color: #dc2626;
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+  font-weight: 400;
+}
+
+/* 操作按钮组 */
+.editor-modal .action-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+/* 模态框动画效果 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 模态框响应式设计 */
+@media (max-width: 768px) {
+  .editor-modal {
+    width: 95%;
+    margin: 1rem;
+    border-radius: 8px;
+  }
+  
+  .editor-modal .modal-title-bar,
+  .editor-modal .modal-main {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .editor-modal .item-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+  
+  .editor-modal .item-grid > span[class^="header-"] {
+    display: none;
+  }
+}

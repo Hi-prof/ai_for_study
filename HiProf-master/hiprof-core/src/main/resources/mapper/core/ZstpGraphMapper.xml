@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hiprof.core.mapper.ZstpGraphMapper">
+    
+    <resultMap type="ZstpGraph" id="ZstpGraphResult">
+        <result property="id"    column="id"    />
+        <result property="name"    column="name"    />
+        <result property="content"    column="content"    />
+        <result property="graphType"    column="graph_type"    />
+        <result property="courseId"    column="course_id"    />
+        <result property="createBy"    column="create_by"    />
+    </resultMap>
+
+    <sql id="selectZstpGraphVo">
+        select id, name, content, graph_type, course_id, create_time, update_time,create_by from zstp_graph
+    </sql>
+
+    <select id="selectZstpGraphList" parameterType="ZstpGraph" resultMap="ZstpGraphResult">
+        <include refid="selectZstpGraphVo"/>
+        <where>
+            <if test="name != null  and name != ''"> and name like concat('%', #{name}, '%')</if>
+            <if test="graphType != null  and graphType != ''"> and graph_type = #{graphType}</if>
+            <if test="courseId != null  "> and course_id = #{courseId}</if>
+            <if test="createBy != null and createBy != ''  "> and create_by = #{createBy}</if>
+        </where>
+    </select>
+
+    <select id="selectZstpGraphVoList" parameterType="ZstpGraph" resultType="com.hiprof.core.domain.vo.ZstpGraphVo">
+
+        select  g.id,g.`name`,g.content,g.create_time,g.update_time, g.graph_type,g.course_id,g.create_by, IFNULL(n.node_count,0) as node_count
+        FROM zstp_graph g left JOIN ( select count(*) as node_count ,graph_id  from zstp_node group by graph_id ) n
+                                    on g.id = n.graph_id
+        <where>
+            <if test="name != null  and name != ''"> and name like concat('%', #{name}, '%')</if>
+            <if test="graphType != null  and graphType != '' "> and graph_type = #{graphType}</if>
+            <if test="courseId != null  "> and course_id = #{courseId}</if>
+            <if test="createBy != null and createBy != ''  "> and create_by = #{createBy}</if>
+        </where>
+
+    </select>
+    
+    <select id="selectZstpGraphById" parameterType="Long" resultMap="ZstpGraphResult">
+        <include refid="selectZstpGraphVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertZstpGraph" parameterType="ZstpGraph" useGeneratedKeys="true" keyProperty="id">
+        insert into zstp_graph
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="name != null and name != ''">name,</if>
+            <if test="content != null">content,</if>
+            <if test="courseId != null">course_id,</if>
+            <if test="graphType != null">graph_type,</if>
+            <if test="createBy != null">create_by,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="name != null and name != ''">#{name},</if>
+            <if test="content != null">#{content},</if>
+            <if test="courseId != null">#{courseId},</if>
+            <if test="graphType != null and graphType != '' ">#{graphType},</if>
+            <if test="createBy != null and createBy != '' ">#{createBy},</if>
+
+         </trim>
+    </insert>
+
+    <update id="updateZstpGraph" parameterType="ZstpGraph">
+        update zstp_graph
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="content != null">content = #{content},</if>
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="graphType != null and graphType != '' ">graph_type = #{graphType},</if>
+            <if test="createBy != null and createBy != '' ">create_by = #{createBy},</if>
+
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteZstpGraphById" parameterType="Long">
+        delete from zstp_graph where id = #{id}
+    </delete>
+
+    <delete id="deleteZstpGraphByIds" parameterType="String">
+        delete from zstp_graph where id in 
+        <foreach item="id" collection="ids" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteZstpGraphByCourseIds" parameterType="String">
+        delete from zstp_graph where course_id in
+        <foreach item="id" collection="ids" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hiprof.tp.mapper.TpModuleMapper">
+    
+    <resultMap type="TpModule" id="TpModuleResult">
+        <result property="id"    column="id"    />
+        <result property="planId"    column="plan_id"    />
+        <result property="sort"    column="sort"    />
+    </resultMap>
+
+<!--    <resultMap id="TpModuleTpContentResult" type="TpModule" extends="TpModuleResult">-->
+<!--        <collection property="tpContentList" ofType="TpContent" column="id" select="selectTpContentList" />-->
+<!--    </resultMap>-->
+
+    <resultMap id="TpModuleTpContentResult" type="TpModule" extends="TpModuleResult">
+        <association
+                property="content"
+                javaType="TpContent"
+                select="selectTpContentById"
+                column="id"
+                />
+    </resultMap>
+
+    <resultMap id="TpContentResult" type="TpContent" >
+        <result property="id"    column="id"    />
+        <result property="moduleId"    column="module_id"    />
+        <result property="content"    column="content"    />
+        <result property="fileUrl"    column="file_url"    />
+    </resultMap>
+
+
+    <select id="selectTpModuleById" parameterType="Long" resultMap="TpModuleTpContentResult">
+        select id, plan_id, sort,title
+        from tp_module
+        where id = #{id}
+    </select>
+
+    <sql id="selectTpModuleVo">
+        select id, plan_id, sort from tp_module
+    </sql>
+
+    <select id="selectTpModuleList" parameterType="TpModule" resultMap="TpModuleResult">
+        <include refid="selectTpModuleVo"/>
+        <where>  
+            <if test="id != null "> and id = #{id}</if>
+            <if test="planId != null "> and plan_id = #{planId}</if>
+        </where>
+    </select>
+
+
+    <select id="selectTpContentById" resultMap="TpContentResult">
+        select id, module_id, content, file_url from tp_content
+        where module_id = #{module_id}
+    </select>
+
+    <select id="selectTpContentList" resultMap="TpContentResult">
+        select id, module_id, content, file_url
+        from tp_content
+        where module_id = #{module_id}
+    </select>
+
+    <insert id="insertTpModule" parameterType="TpModule" useGeneratedKeys="true" keyProperty="id">
+        insert into tp_module
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="planId != null">plan_id,</if>
+            <if test="title != null">title,</if>
+            <if test="sort != null">sort,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="planId != null">#{planId},</if>
+            <if test="title != null">title,</if>
+            <if test="sort != null">#{sort},</if>
+         </trim>
+    </insert>
+
+    <update id="updateTpModule" parameterType="TpModule">
+        update tp_module
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="planId != null">plan_id = #{planId},</if>
+            <if test="sort != null">sort = #{sort},</if>
+            <if test="title != null">title = #{title},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteTpModuleById" parameterType="Long">
+        delete from tp_module where id = #{id}
+    </delete>
+
+    <delete id="deleteTpModuleByIds" parameterType="String">
+        delete from tp_module where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+    
+    <delete id="deleteTpContentByModuleIds" parameterType="String">
+        delete from tp_content where module_id in 
+        <foreach item="moduleId" collection="array" open="(" separator="," close=")">
+            #{moduleId}
+        </foreach>
+    </delete>
+
+    <delete id="deleteTpContentByModuleId" parameterType="Long">
+        delete from tp_content where module_id = #{moduleId}
+    </delete>
+
+
+</mapper>

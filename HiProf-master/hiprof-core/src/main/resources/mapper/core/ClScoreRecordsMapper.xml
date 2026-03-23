@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hiprof.core.mapper.ClScoreRecordsMapper">
+    
+    <resultMap type="ClScoreRecords" id="ClScoreRecordsResult">
+        <result property="id"    column="id"    />
+        <result property="itemId"    column="item_id"    />
+        <result property="studentId"    column="student_id"    />
+        <result property="courseId"    column="course_id"    />
+        <result property="score"    column="score"    />
+        <result property="remark"    column="remark"    />
+        <result property="graderId"    column="grader_id"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+    </resultMap>
+
+    <sql id="selectClScoreRecordsVo">
+        select id, item_id, student_id, course_id, score, remark, grader_id, create_time, update_time from cl_score_records
+    </sql>
+
+    <select id="selectClScoreRecordsList" parameterType="ClScoreRecords" resultMap="ClScoreRecordsResult">
+        <include refid="selectClScoreRecordsVo"/>
+        <where>  
+            <if test="itemId != null "> and item_id = #{itemId}</if>
+            <if test="studentId != null "> and student_id = #{studentId}</if>
+            <if test="courseId != null "> and course_id = #{courseId}</if>
+            <if test="graderId != null "> and grader_id = #{graderId}</if>
+        </where>
+    </select>
+    
+    <select id="selectClScoreRecordsById" parameterType="Long" resultMap="ClScoreRecordsResult">
+        <include refid="selectClScoreRecordsVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertClScoreRecords" parameterType="ClScoreRecords" useGeneratedKeys="true" keyProperty="id">
+        insert into cl_score_records
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="itemId != null">item_id,</if>
+            <if test="studentId != null">student_id,</if>
+            <if test="courseId != null">course_id,</if>
+            <if test="score != null">score,</if>
+            <if test="remark != null">remark,</if>
+            <if test="graderId != null">grader_id,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="itemId != null">#{itemId},</if>
+            <if test="studentId != null">#{studentId},</if>
+            <if test="courseId != null">#{courseId},</if>
+            <if test="score != null">#{score},</if>
+            <if test="remark != null">#{remark},</if>
+            <if test="graderId != null">#{graderId},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+         </trim>
+    </insert>
+
+    <update id="updateClScoreRecords" parameterType="ClScoreRecords">
+        update cl_score_records
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="itemId != null">item_id = #{itemId},</if>
+            <if test="studentId != null">student_id = #{studentId},</if>
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="score != null">score = #{score},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            <if test="graderId != null">grader_id = #{graderId},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteClScoreRecordsById" parameterType="Long">
+        delete from cl_score_records where id = #{id}
+    </delete>
+
+    <delete id="deleteClScoreRecordsByIds" parameterType="String">
+        delete from cl_score_records where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

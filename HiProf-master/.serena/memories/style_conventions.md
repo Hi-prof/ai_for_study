@@ -1,0 +1,1 @@
+Java 侧沿用 RuoYi 风格：实体放 common/core domain，接口放 service，SQL 放 mapper XML；多数类使用传统 getter/setter 和事务注解。前端是 Vue 2 Options API，表单校验写在 data() 里的 rules，自定义校验器常用箭头函数。修改现有功能时优先沿用现有页面和接口模式，不随便引入新框架。涉及业务联动时，优先在服务层或控制器编排事务，保证用户、角色、业务绑定一起成功或一起回滚。

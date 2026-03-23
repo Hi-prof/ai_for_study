@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hiprof.tp.mapper.TpPlanMapper">
+    
+    <resultMap type="TpPlan" id="TpPlanResult">
+        <result property="id"    column="id"    />
+        <result property="title"    column="title"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+    </resultMap>
+
+    <resultMap id="TpPlanTpModuleResult" type="TpPlan" extends="TpPlanResult">
+        <collection property="tpModuleList"
+                    ofType="TpModule"
+                    column="id"
+                    select="selectTpModuleList" />
+    </resultMap>
+
+    <resultMap id="TpContentResult" type="TpContent">
+        <result property="id"    column="id"    />
+        <result property="moduleId"    column="module_id"    />
+        <result property="content"    column="content"    />
+        <result property="fileUrl"    column="file_url"    />
+    </resultMap>
+
+    <resultMap id="TpModuleResult" type="TpModule">
+        <result property="id" column="id"/>
+        <result property="planId" column="plan_id"/>
+        <result property="sort" column="sort"/>
+        <association property="content"
+                     javaType="TpContent"
+                     select="selectTpContentById"
+                     column="id"/>
+    </resultMap>
+
+    <sql id="selectTpPlanVo">
+        select id, title, create_by, create_time, update_time from tp_plan
+    </sql>
+
+    <select id="selectTpContentById" resultMap="TpContentResult">
+        select id, module_id, content, file_url from tp_content
+        where module_id = #{module_id}
+    </select>
+
+    <select id="selectTpPlanList" parameterType="TpPlan" resultMap="TpPlanResult">
+        <include refid="selectTpPlanVo"/>
+        <where>  
+            <if test="id != null "> and id = #{id}</if>
+            <if test="title != null  and title != ''"> and title = #{title}</if>
+            <if test="createBy != null "> and create_by = #{createBy}</if>
+        </where>
+    </select>
+
+
+    <select id="selectTpPlanById" parameterType="Long" resultMap="TpPlanTpModuleResult">
+        select id, title, create_by, create_time, update_time
+        from tp_plan
+        where id = #{id}
+    </select>
+
+    <select id="selectTpModuleList" resultMap="TpModuleResult">
+        select id, plan_id, sort,title
+        from tp_module
+        where plan_id = #{plan_id}
+    </select>
+
+    <insert id="insertTpPlan" parameterType="TpPlan" useGeneratedKeys="true" keyProperty="id">
+        insert into tp_plan
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="title != null and title != ''">title,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="title != null and title != ''">#{title},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+         </trim>
+    </insert>
+
+    <update id="updateTpPlan" parameterType="TpPlan">
+        update tp_plan
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="title != null and title != ''">title = #{title},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteTpPlanById" parameterType="Long">
+        delete from tp_plan where id = #{id}
+    </delete>
+
+    <delete id="deleteTpPlanByIds" parameterType="String">
+        delete from tp_plan where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+    
+    <delete id="deleteTpModuleByPlanIds" parameterType="String">
+        delete from tp_module where plan_id in 
+        <foreach item="planId" collection="array" open="(" separator="," close=")">
+            #{planId}
+        </foreach>
+    </delete>
+
+    <delete id="deleteTpModuleByPlanId" parameterType="Long">
+        delete from tp_module where plan_id = #{planId}
+    </delete>
+
+    <insert id="batchTpModule" useGeneratedKeys="true" keyProperty="id">
+        insert into tp_module(  plan_id, sort,title) values
+        <foreach item="item" index="index" collection="list" separator=",">
+            (  #{item.planId}, #{item.sort},#{item.title})
+        </foreach>
+    </insert>
+
+    <insert id="batchTpContent">
+        insert into tp_content(  module_id, content, file_url) values
+        <foreach item="item" index="index" collection="tpContentList" separator=",">
+            ( #{item.moduleId}, #{item.content}, #{item.fileUrl})
+        </foreach>
+    </insert>
+</mapper>

@@ -1,0 +1,278 @@
+/* Carousel 组件样式 */
+
+.carousel-container {
+  position: relative;
+  width: 100vw;
+  height: var(--carousel-height-desktop);
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 0;
+  border: 1px solid #e5e5e5;
+  background: white;
+  box-shadow: var(--shadow-md);
+}
+
+.carousel {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.carousel-slide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+/* 替换图片的静态CSS背景设计 */
+.carousel-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* 统一纯色背景 */
+.bg-knowledge-graph,
+.bg-learning-path,
+.bg-collaboration,
+.bg-ai-assistant,
+.bg-analytics {
+  background: #7D1006;
+}
+
+
+
+
+
+.carousel-caption {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: var(--spacing-sm);
+  color: white;
+  text-shadow: 0 4px 8px rgba(0, 0, 0, 0.6);
+  z-index: 5;
+  text-align: center;
+  width: 90%;
+}
+
+
+
+.caption-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-sm);
+}
+
+.carousel-title {
+  font-size: clamp(1.5rem, 4vw, 3rem);
+  margin-bottom: var(--spacing-sm);
+  font-weight: 700;
+  color: white;
+  line-height: 1.2;
+}
+
+.carousel-title::after {
+  display: none;
+}
+
+.carousel-description {
+  font-size: clamp(0.875rem, 2vw, 1.25rem);
+  margin-bottom: var(--spacing-md);
+  opacity: 0.9;
+  line-height: 1.6;
+  max-width: 90%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.carousel-controls {
+  position: absolute;
+  bottom: var(--spacing-xs);
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--spacing-sm);
+  z-index: 50;
+  pointer-events: none;
+}
+
+.carousel-control {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #ddd;
+  color: #333;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  z-index: 100;
+  pointer-events: auto;
+  position: relative;
+  padding: 12px;
+  margin: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.carousel-control::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  right: -8px;
+  bottom: -8px;
+  border-radius: 50%;
+  pointer-events: auto;
+}
+
+.carousel-control:hover {
+  background: white;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.carousel-control:active {
+  transform: scale(0.95);
+  background: #f5f5f5;
+}
+
+.carousel-indicators {
+  display: flex;
+  gap: var(--spacing-xs);
+  pointer-events: auto;
+  z-index: 100;
+  position: relative;
+}
+
+.carousel-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.7);
+  border: 1px solid #ccc;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 100;
+  pointer-events: auto;
+  position: relative;
+}
+
+.carousel-indicator:hover {
+  background-color: white;
+  transform: scale(1.1);
+}
+
+.carousel-indicator.active {
+  background-color: #333;
+  transform: scale(1.2);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+}
+
+/* 适配移动设备 */
+@media (max-width: 800px) {
+  .carousel-container {
+    height: var(--carousel-height-mobile);
+  }
+
+  .carousel-title {
+    font-size: clamp(1.25rem, 3.5vw, 2rem);
+  }
+
+  .carousel-description {
+    font-size: clamp(0.75rem, 1.8vw, 1rem);
+  }
+  
+  .background-icon {
+    font-size: 4.2rem; /* 移动端也相应增大 */
+    filter: drop-shadow(0 8px 30px rgba(0, 0, 0, 0.2));
+  }
+  
+  .background-icon::before {
+    top: -30px;
+    left: -30px;
+    right: -30px;
+    bottom: -30px;
+    filter: blur(20px);
+  }
+  
+  .background-icon::after {
+    top: -35px;
+    left: -35px;
+    right: -35px;
+    bottom: -35px;
+    border-width: 2px;
+  }
+  
+  .carousel-caption {
+    padding: var(--spacing-xs);
+    padding-bottom: 35px;
+  }
+  
+
+}
+
+/* 平板设备适配 */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .carousel-container {
+    height: var(--carousel-height-tablet);
+  }
+}
+
+/* 小屏手机适配 */
+@media (max-width: 480px) {
+  .carousel-container {
+    height: calc(var(--carousel-height-mobile) * 0.8);
+  }
+
+  .carousel-title {
+    font-size: clamp(1rem, 3vw, 1.5rem);
+  }
+  
+  .background-icon {
+    font-size: 3.5rem; /* 小屏手机也相应增大 */
+    filter: drop-shadow(0 6px 25px rgba(0, 0, 0, 0.15));
+  }
+  
+  .background-icon::before {
+    top: -25px;
+    left: -25px;
+    right: -25px;
+    bottom: -25px;
+    filter: blur(15px);
+  }
+  
+  .background-icon::after {
+    top: -30px;
+    left: -30px;
+    right: -30px;
+    bottom: -30px;
+    border-width: 2px;
+  }
+  
+  .caption-actions {
+    flex-direction: column;
+  }
+  
+  .glass-button {
+    padding: 8px 16px;
+    font-size: 0.875rem;
+  }
+}

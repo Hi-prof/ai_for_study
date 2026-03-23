@@ -1,0 +1,66 @@
+<svg width="300" height="180" viewBox="0 0 300 180" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景渐变 - Glassmorphism风格 -->
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:rgba(255,255,255,0.25);stop-opacity:1" />
+      <stop offset="50%" style="stop-color:rgba(125,211,252,0.18);stop-opacity:1" />
+      <stop offset="100%" style="stop-color:rgba(255,255,255,0.2);stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="circle2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:rgba(255,255,255,0.4);stop-opacity:1" />
+      <stop offset="100%" style="stop-color:rgba(255,255,255,0.25);stop-opacity:1" />
+    </linearGradient>
+    <filter id="blur2">
+      <feGaussianBlur stdDeviation="1"/>
+    </filter>
+  </defs>
+  
+  <!-- 背景 -->
+  <rect width="300" height="180" fill="url(#bg2)" rx="20"/>
+  <rect width="300" height="180" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1" rx="20"/>
+  
+  <!-- 毛玻璃背景层 -->
+  <rect x="20" y="20" width="260" height="140" fill="rgba(255,255,255,0.1)" rx="16" filter="url(#blur2)"/>
+  
+  <!-- 大脑图标 -->
+  <ellipse cx="150" cy="80" rx="32" ry="22" fill="url(#circle2)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <path d="M 125 80 Q 135 70 150 70 Q 165 70 175 80 Q 175 88 165 92 Q 150 96 135 92 Q 125 88 125 80" 
+        fill="rgba(125,211,252,0.2)" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+  
+  <!-- 知识节点 -->
+  <circle cx="90" cy="55" r="12" fill="url(#circle2)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <text x="90" y="60" text-anchor="middle" fill="rgba(0,0,0,0.7)" font-size="10" font-weight="500">输入</text>
+  
+  <circle cx="210" cy="55" r="12" fill="url(#circle2)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <text x="210" y="60" text-anchor="middle" fill="rgba(0,0,0,0.7)" font-size="10" font-weight="500">处理</text>
+  
+  <circle cx="90" cy="125" r="12" fill="url(#circle2)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <text x="90" y="130" text-anchor="middle" fill="rgba(0,0,0,0.7)" font-size="10" font-weight="500">记忆</text>
+  
+  <circle cx="210" cy="125" r="12" fill="url(#circle2)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <text x="210" y="130" text-anchor="middle" fill="rgba(0,0,0,0.7)" font-size="10" font-weight="500">应用</text>
+  
+  <!-- 连接线 -->
+  <line x1="102" y1="60" x2="125" y2="72" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+  <line x1="175" y1="72" x2="198" y2="60" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+  <line x1="125" y1="88" x2="102" y2="120" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+  <line x1="198" y1="120" x2="175" y2="88" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+  
+  <!-- 书本图标 -->
+  <rect x="60" y="145" width="18" height="13" fill="rgba(255,255,255,0.3)" stroke="rgba(255,255,255,0.4)" stroke-width="1" rx="2"/>
+  <line x1="63" y1="149" x2="73" y2="149" stroke="rgba(0,0,0,0.4)" stroke-width="0.5"/>
+  <line x1="63" y1="152" x2="73" y2="152" stroke="rgba(0,0,0,0.4)" stroke-width="0.5"/>
+  
+  <!-- 灯泡图标 -->
+  <circle cx="230" cy="147" r="7" fill="rgba(255,255,255,0.4)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <rect x="227.5" y="152" width="5" height="3" fill="rgba(255,255,255,0.3)" rx="1"/>
+  
+  <!-- 标题 -->
+  <text x="150" y="25" text-anchor="middle" fill="rgba(0,0,0,0.8)" font-size="14" font-weight="600">高效学习</text>
+  
+  <!-- 装饰光斑 -->
+  <circle cx="40" cy="35" r="8" fill="rgba(125,211,252,0.2)" filter="url(#blur2)"/>
+  <circle cx="260" cy="145" r="10" fill="rgba(255,255,255,0.25)" filter="url(#blur2)"/>
+  <circle cx="270" cy="35" r="6" fill="rgba(125,211,252,0.15)" filter="url(#blur2)"/>
+  <circle cx="30" cy="155" r="6" fill="rgba(255,255,255,0.2)" filter="url(#blur2)"/>
+</svg> 

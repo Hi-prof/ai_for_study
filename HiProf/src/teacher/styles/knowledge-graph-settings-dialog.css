@@ -1,0 +1,259 @@
+/* 知识图谱设置对话框样式 - 简约现代风格 */
+
+.settings-content {
+  padding: 0;
+}
+
+.settings-section {
+  margin-bottom: 2.5rem;
+  padding: 1.5rem;
+  background: #fafafa;
+  border-radius: 12px;
+  border: 1px solid #f0f0f0;
+  transition: all 0.2s ease;
+}
+
+.settings-section:hover {
+  background: #f8f9fa;
+  border-color: #e9ecef;
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 0 0 1.5rem 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #e2e8f0;
+  position: relative;
+}
+
+.section-title::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 40px;
+  height: 2px;
+  background: linear-gradient(90deg, #4f46e5, #7c3aed);
+  border-radius: 1px;
+}
+
+.form-group {
+  margin-bottom: 1.75rem;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #4a5568;
+  margin-bottom: 0.75rem;
+  letter-spacing: 0.025em;
+}
+
+.form-input,
+.form-textarea,
+.form-select {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.form-input:focus,
+.form-textarea:focus,
+.form-select:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+  background: #fefefe;
+}
+
+.form-input:hover,
+.form-textarea:hover,
+.form-select:hover {
+  border-color: #cbd5e0;
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 90px;
+  line-height: 1.5;
+}
+
+.form-select {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25rem;
+  padding-right: 2.5rem;
+}
+
+.form-hint {
+  display: block;
+  font-size: 0.8rem;
+  color: #718096;
+  margin-top: 0.5rem;
+  line-height: 1.4;
+}
+
+.radio-group,
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.radio-item,
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+  position: relative;
+}
+
+.radio-item:hover,
+.checkbox-item:hover {
+  background: #f7fafc;
+}
+
+.radio-input,
+.checkbox-input {
+  margin-right: 0.75rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: #4f46e5;
+  cursor: pointer;
+}
+
+.radio-label,
+.checkbox-label {
+  font-size: 0.9rem;
+  color: #4a5568;
+  user-select: none;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+/* 选中状态样式 */
+.radio-item:has(.radio-input:checked),
+.checkbox-item:has(.checkbox-input:checked) {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+}
+
+.radio-item:has(.radio-input:checked) .radio-label,
+.checkbox-item:has(.checkbox-input:checked) .checkbox-label {
+  color: #4338ca;
+  font-weight: 600;
+}
+
+/* 响应式设计 */
+@media (max-width: 640px) {
+  .settings-section {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .section-title {
+    font-size: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .form-group {
+    margin-bottom: 1.25rem;
+  }
+  
+  .radio-group,
+  .checkbox-group {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .form-input,
+  .form-textarea,
+  .form-select {
+    padding: 0.75rem;
+    font-size: 0.875rem;
+  }
+}
+
+/* 深色模式支持 */
+@media (prefers-color-scheme: dark) {
+  .settings-section {
+    background: #1a202c;
+    border-color: #2d3748;
+  }
+  
+  .settings-section:hover {
+    background: #2d3748;
+    border-color: #4a5568;
+  }
+  
+  .section-title {
+    color: #e2e8f0;
+    border-bottom-color: #4a5568;
+  }
+  
+  .form-label {
+    color: #cbd5e0;
+  }
+  
+  .form-input,
+  .form-textarea,
+  .form-select {
+    background: #2d3748;
+    border-color: #4a5568;
+    color: #e2e8f0;
+  }
+  
+  .form-input:focus,
+  .form-textarea:focus,
+  .form-select:focus {
+    background: #374151;
+    border-color: #6366f1;
+  }
+  
+  .form-hint {
+    color: #a0aec0;
+  }
+  
+  .radio-label,
+  .checkbox-label {
+    color: #cbd5e0;
+  }
+  
+  .radio-item:hover,
+  .checkbox-item:hover {
+    background: #374151;
+  }
+  
+  .radio-item:has(.radio-input:checked),
+  .checkbox-item:has(.checkbox-input:checked) {
+    background: #312e81;
+    border-color: #6366f1;
+  }
+  
+  .radio-item:has(.radio-input:checked) .radio-label,
+  .checkbox-item:has(.checkbox-input:checked) .checkbox-label {
+    color: #a5b4fc;
+  }
+}

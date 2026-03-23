@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hiprof.core.mapper.ClCourseMembersMapper">
+    
+    <resultMap type="ClCourseMembers" id="ClCourseMembersResult">
+        <result property="id"    column="id"    />
+        <result property="courseId"    column="course_id"    />
+        <result property="userId"    column="user_id"    />
+        <result property="memberRole"    column="member_role"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+    </resultMap>
+
+    <sql id="selectClCourseMembersVo">
+        select id, course_id, user_id, member_role, create_time, update_time from cl_course_members
+    </sql>
+
+    <select id="selectClCourseMembersList" parameterType="ClCourseMembers" resultMap="ClCourseMembersResult">
+        <include refid="selectClCourseMembersVo"/>
+        <where>  
+            <if test="courseId != null "> and course_id = #{courseId}</if>
+            <if test="userId != null "> and user_id = #{userId}</if>
+            <if test="memberRole != null  and memberRole != ''"> and member_role = #{memberRole}</if>
+        </where>
+    </select>
+    
+    <select id="selectClCourseMembersById" parameterType="Long" resultMap="ClCourseMembersResult">
+        <include refid="selectClCourseMembersVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertClCourseMembers" parameterType="ClCourseMembers" useGeneratedKeys="true" keyProperty="id">
+        insert into cl_course_members
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="courseId != null">course_id,</if>
+            <if test="userId != null">user_id,</if>
+            <if test="memberRole != null">member_role,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="courseId != null">#{courseId},</if>
+            <if test="userId != null">#{userId},</if>
+            <if test="memberRole != null">#{memberRole},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+         </trim>
+    </insert>
+
+    <update id="updateClCourseMembers" parameterType="ClCourseMembers">
+        update cl_course_members
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="userId != null">user_id = #{userId},</if>
+            <if test="memberRole != null">member_role = #{memberRole},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteClCourseMembersById" parameterType="Long">
+        delete from cl_course_members where id = #{id}
+    </delete>
+
+    <delete id="deleteClCourseMembersByIds" parameterType="String">
+        delete from cl_course_members where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+    <delete id="deleteClCourseMembersByCourseIds" parameterType="String">
+        delete from cl_course_members where course_id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

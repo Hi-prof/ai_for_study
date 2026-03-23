@@ -1,0 +1,266 @@
+/* 教师端设计系统变量定义 */
+
+:root {
+  /* 主色调 */
+  --primary-color: #4299e1;
+  --primary-color-dark: #3182ce;
+  --primary-color-light: #63b3ed;
+  --primary-color-lighter: #bee3f8;
+  --primary-color-lightest: #ebf8ff;
+
+  /* 辅助色调 */
+  --secondary-color: #48bb78;
+  --secondary-color-dark: #38a169;
+  --secondary-color-light: #68d391;
+  
+  --accent-color: #ed8936;
+  --accent-color-dark: #dd6b20;
+  --accent-color-light: #f6ad55;
+
+  --warning-color: #f59e0b;
+  --warning-color-dark: #d97706;
+  --warning-color-light: #fbbf24;
+
+  --danger-color: #ef4444;
+  --danger-color-dark: #dc2626;
+  --danger-color-light: #f87171;
+
+  --success-color: #10b981;
+  --success-color-dark: #059669;
+  --success-color-light: #34d399;
+
+  --info-color: #3b82f6;
+  --info-color-dark: #2563eb;
+  --info-color-light: #60a5fa;
+
+  /* 中性色调 */
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+
+  /* 文本颜色 */
+  --text-color: #1f2937;
+  --text-color-secondary: #6b7280;
+  --text-color-muted: #9ca3af;
+  --text-color-light: #d1d5db;
+  --text-color-inverse: #ffffff;
+
+  /* 背景颜色 */
+  --background-color: #ffffff;
+  --background-color-secondary: #f9fafb;
+  --background-color-tertiary: #f3f4f6;
+  --background-color-dark: #1f2937;
+  --background-color-overlay: rgba(0, 0, 0, 0.5);
+
+  /* 边框颜色 */
+  --border-color: #e5e7eb;
+  --border-color-light: #f3f4f6;
+  --border-color-dark: #d1d5db;
+  --border-color-focus: #3b82f6;
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+
+  /* 圆角 */
+  --border-radius-sm: 4px;
+  --border-radius: 6px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --border-radius-xl: 16px;
+  --border-radius-2xl: 20px;
+  --border-radius-full: 9999px;
+
+  /* 间距 */
+  --spacing-xs: 0.25rem;   /* 4px */
+  --spacing-sm: 0.5rem;    /* 8px */
+  --spacing-md: 0.75rem;   /* 12px */
+  --spacing-lg: 1rem;      /* 16px */
+  --spacing-xl: 1.25rem;   /* 20px */
+  --spacing-2xl: 1.5rem;   /* 24px */
+  --spacing-3xl: 2rem;     /* 32px */
+  --spacing-4xl: 2.5rem;   /* 40px */
+  --spacing-5xl: 3rem;     /* 48px */
+  --spacing-6xl: 4rem;     /* 64px */
+
+  /* 字体大小 */
+  --font-size-xs: 0.75rem;     /* 12px */
+  --font-size-sm: 0.875rem;    /* 14px */
+  --font-size-base: 1rem;      /* 16px */
+  --font-size-lg: 1.125rem;    /* 18px */
+  --font-size-xl: 1.25rem;     /* 20px */
+  --font-size-2xl: 1.5rem;     /* 24px */
+  --font-size-3xl: 1.875rem;   /* 30px */
+  --font-size-4xl: 2.25rem;    /* 36px */
+  --font-size-5xl: 3rem;       /* 48px */
+
+  /* 字体粗细 */
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  /* 行高 */
+  --line-height-tight: 1.25;
+  --line-height-snug: 1.375;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.625;
+  --line-height-loose: 2;
+
+  /* 字体族 */
+  --font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-family-serif: Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-family-mono: Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* 过渡动画 */
+  --transition-fast: 0.15s ease-out;
+  --transition-base: 0.2s ease-out;
+  --transition-slow: 0.3s ease-out;
+  --transition-slower: 0.5s ease-out;
+
+  /* 缓动函数 */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Z-index层级 */
+  --z-index-dropdown: 1000;
+  --z-index-sticky: 1020;
+  --z-index-fixed: 1030;
+  --z-index-modal-backdrop: 1040;
+  --z-index-modal: 1050;
+  --z-index-popover: 1060;
+  --z-index-tooltip: 1070;
+
+  /* 断点 */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+
+  /* 容器最大宽度 */
+  --container-sm: 640px;
+  --container-md: 768px;
+  --container-lg: 1024px;
+  --container-xl: 1280px;
+  --container-2xl: 1536px;
+
+  /* 网格系统 */
+  --grid-columns: 12;
+  --grid-gap: 1rem;
+  --grid-gap-sm: 0.5rem;
+  --grid-gap-lg: 1.5rem;
+  --grid-gap-xl: 2rem;
+
+  /* 表单元素 */
+  --input-height: 2.75rem;     /* 44px */
+  --input-height-sm: 2.25rem;  /* 36px */
+  --input-height-lg: 3.25rem;  /* 52px */
+  --input-padding-x: 0.75rem;
+  --input-padding-y: 0.5rem;
+
+  /* 按钮 */
+  --button-height: 2.75rem;     /* 44px */
+  --button-height-sm: 2.25rem;  /* 36px */
+  --button-height-lg: 3.25rem;  /* 52px */
+  --button-padding-x: 1.5rem;
+  --button-padding-y: 0.75rem;
+  --button-padding-x-sm: 1rem;
+  --button-padding-y-sm: 0.5rem;
+  --button-padding-x-lg: 2rem;
+  --button-padding-y-lg: 1rem;
+
+  /* 卡片 */
+  --card-padding: 1.5rem;
+  --card-padding-sm: 1rem;
+  --card-padding-lg: 2rem;
+  --card-border-radius: var(--border-radius-lg);
+  --card-shadow: var(--shadow-md);
+
+  /* 模态框 */
+  --modal-backdrop: rgba(0, 0, 0, 0.5);
+  --modal-border-radius: var(--border-radius-lg);
+  --modal-shadow: var(--shadow-2xl);
+  --modal-padding: 1.5rem;
+
+  /* 导航 */
+  --nav-height: 4rem;          /* 64px */
+  --nav-padding-x: 1.5rem;
+  --nav-padding-y: 1rem;
+
+  /* 侧边栏 */
+  --sidebar-width: 16rem;       /* 256px */
+  --sidebar-width-collapsed: 4rem; /* 64px */
+
+  /* 内容区域 */
+  --content-padding: 2rem;
+  --content-padding-sm: 1rem;
+  --content-padding-lg: 3rem;
+  --content-max-width: 1200px;
+}
+
+/* 暗色模式变量 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* 文本颜色 */
+    --text-color: #f9fafb;
+    --text-color-secondary: #d1d5db;
+    --text-color-muted: #9ca3af;
+    --text-color-light: #6b7280;
+    --text-color-inverse: #1f2937;
+
+    /* 背景颜色 */
+    --background-color: #1f2937;
+    --background-color-secondary: #374151;
+    --background-color-tertiary: #4b5563;
+    --background-color-dark: #111827;
+
+    /* 边框颜色 */
+    --border-color: #4b5563;
+    --border-color-light: #374151;
+    --border-color-dark: #6b7280;
+
+    /* 卡片阴影调整 */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+    --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* 高对比度模式 */
+@media (prefers-contrast: high) {
+  :root {
+    --border-color: #000000;
+    --border-color-light: #333333;
+    --border-color-dark: #000000;
+    --text-color: #000000;
+    --text-color-secondary: #333333;
+  }
+}
+
+/* 减少动画模式 */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0s;
+    --transition-base: 0s;
+    --transition-slow: 0s;
+    --transition-slower: 0s;
+  }
+}

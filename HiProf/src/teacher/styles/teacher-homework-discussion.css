@@ -1,0 +1,191 @@
+/* 作业与讨论面板样式 */
+.homework-discussion-panel {
+  flex: 1;
+  overflow: hidden;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 作业与讨论模块网格样式 */
+.homework-modules-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.module-card {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  border: 1px solid #f0f0f0;
+  overflow: hidden;
+  min-height: 280px;
+}
+
+.module-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  border-color: #d1d5db;
+}
+
+.module-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 1.5rem 1rem;
+  position: relative;
+}
+
+.module-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* 作业与讨论模块图标颜色 */
+.homework-icon {
+  background: linear-gradient(135deg, #4F9CF9 0%, #3B82F6 100%);
+}
+
+.discussion-icon {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+}
+
+.analysis-icon {
+  background: linear-gradient(135deg, #A855F7 0%, #8B5CF6 100%);
+}
+
+.module-icon i {
+  font-size: 24px;
+  color: white;
+}
+
+/* 新增图标样式 */
+.icon-assignment::before {
+  content: "📋";
+  font-style: normal;
+}
+
+.icon-chat::before {
+  content: "💬";
+  font-style: normal;
+}
+
+.icon-analytics::before {
+  content: "📊";
+  font-style: normal;
+}
+
+.module-content {
+  flex: 1;
+  padding: 0 1.5rem 1rem;
+  text-align: left;
+}
+
+.module-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 0.5rem 0;
+}
+
+.module-desc {
+  font-size: 0.875rem;
+  color: #6b7280;
+  line-height: 1.5;
+  margin: 0 0 1rem 0;
+}
+
+.module-footer {
+  padding: 1rem 1.5rem 1.5rem;
+  border-top: 1px solid #f3f4f6;
+  background: rgba(249, 250, 251, 0.5);
+}
+
+.module-btn {
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-blue {
+  background: #3B82F6;
+  color: white;
+}
+
+.btn-blue:hover {
+  background: #2563EB;
+}
+
+.btn-green {
+  background: #10B981;
+  color: white;
+}
+
+.btn-green:hover {
+  background: #059669;
+}
+
+.btn-purple {
+  background: #8B5CF6;
+  color: white;
+}
+
+.btn-purple:hover {
+  background: #7C3AED;
+}
+
+/* 响应式设计 */
+@media (max-width: 1200px) {
+  .homework-modules-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .homework-modules-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .module-card {
+    min-height: 240px;
+  }
+  
+  .module-header {
+    padding: 1.25rem 1.25rem 0.75rem;
+  }
+  
+  .module-content {
+    padding: 0 1.25rem 0.75rem;
+  }
+  
+  .module-footer {
+    padding: 0.75rem 1.25rem 1.25rem;
+  }
+  
+  .module-icon {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .module-icon i {
+    font-size: 20px;
+  }
+}

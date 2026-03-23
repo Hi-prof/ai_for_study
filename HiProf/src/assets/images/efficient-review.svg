@@ -1,0 +1,62 @@
+<svg width="300" height="180" viewBox="0 0 300 180" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景渐变 - Glassmorphism风格 -->
+  <defs>
+    <linearGradient id="bg1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:rgba(255,255,255,0.25);stop-opacity:1" />
+      <stop offset="50%" style="stop-color:rgba(125,211,252,0.15);stop-opacity:1" />
+      <stop offset="100%" style="stop-color:rgba(255,255,255,0.2);stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="circle1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:rgba(255,255,255,0.4);stop-opacity:1" />
+      <stop offset="100%" style="stop-color:rgba(255,255,255,0.25);stop-opacity:1" />
+    </linearGradient>
+    <filter id="blur1">
+      <feGaussianBlur stdDeviation="1"/>
+    </filter>
+  </defs>
+  
+  <!-- 背景 -->
+  <rect width="300" height="180" fill="url(#bg1)" rx="20"/>
+  <rect width="300" height="180" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1" rx="20"/>
+  
+  <!-- 毛玻璃背景层 -->
+  <rect x="20" y="20" width="260" height="140" fill="rgba(255,255,255,0.1)" rx="16" filter="url(#blur1)"/>
+  
+  <!-- 复盘循环图示 -->
+  <circle cx="150" cy="90" r="50" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" stroke-dasharray="8,4"/>
+  
+  <!-- 四个关键步骤 -->
+  <circle cx="150" cy="50" r="16" fill="url(#circle1)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <text x="150" y="56" text-anchor="middle" fill="rgba(0,0,0,0.7)" font-size="12" font-weight="500">准备</text>
+  
+  <circle cx="190" cy="90" r="16" fill="url(#circle1)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <text x="190" y="96" text-anchor="middle" fill="rgba(0,0,0,0.7)" font-size="12" font-weight="500">分析</text>
+  
+  <circle cx="150" cy="130" r="16" fill="url(#circle1)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <text x="150" y="136" text-anchor="middle" fill="rgba(0,0,0,0.7)" font-size="12" font-weight="500">总结</text>
+  
+  <circle cx="110" cy="90" r="16" fill="url(#circle1)" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+  <text x="110" y="96" text-anchor="middle" fill="rgba(0,0,0,0.7)" font-size="12" font-weight="500">改进</text>
+  
+  <!-- 箭头指示 -->
+  <path d="M 165 58 Q 178 68 178 82" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <path d="M 178 108 Q 168 118 158 118" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <path d="M 135 118 Q 122 108 122 98" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <path d="M 122 82 Q 132 68 142 58" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  
+  <!-- 箭头标记 -->
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" 
+     refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="rgba(255,255,255,0.5)" />
+    </marker>
+  </defs>
+  
+  <!-- 标题 -->
+  <text x="150" y="25" text-anchor="middle" fill="rgba(0,0,0,0.8)" font-size="14" font-weight="600">高效复盘</text>
+  
+  <!-- 装饰光斑 -->
+  <circle cx="50" cy="40" r="8" fill="rgba(125,211,252,0.2)" filter="url(#blur1)"/>
+  <circle cx="250" cy="140" r="10" fill="rgba(255,255,255,0.25)" filter="url(#blur1)"/>
+  <circle cx="30" cy="150" r="6" fill="rgba(125,211,252,0.15)" filter="url(#blur1)"/>
+</svg> 

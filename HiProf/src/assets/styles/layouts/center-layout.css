@@ -1,0 +1,32 @@
+/* 中心布局专用样式 - 圆形节点 */
+.layout-center .rel-node,
+.layout-center .rel-node-peel,
+.layout-center .rel-node-peel-checked,
+.layout-center .rel-nodediv {
+  border-radius: 50% !important;
+  width: 80px !important;
+  height: 80px !important;
+}
+
+.layout-center .rel-node > *,
+.layout-center .rel-node-peel > *,
+.layout-center .rel-nodediv > * {
+  border-radius: 50% !important;
+}
+
+/* 中心布局节点悬停效果 */
+.layout-center .rel-node:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 16px rgba(52, 152, 219, 0.4);
+}
+
+/* 中心布局连线样式 */
+.layout-center .rel-line {
+  stroke-width: 2px;
+  stroke: rgba(52, 152, 219, 0.8);
+}
+
+.layout-center .rel-line:hover {
+  stroke-width: 3px;
+  stroke: rgba(52, 152, 219, 1);
+}

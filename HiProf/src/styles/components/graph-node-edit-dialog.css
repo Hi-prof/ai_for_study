@@ -1,0 +1,231 @@
+/* 知识图谱节点编辑对话框组件样式 */
+
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialog-container {
+  background-color: var(--background-color);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dialog-title {
+  margin: 0;
+  font-size: var(--font-size-large);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: var(--font-size-large);
+  cursor: pointer;
+  color: var(--text-light);
+}
+
+.dialog-body {
+  padding: var(--spacing-md);
+  overflow-y: auto;
+  flex: 1;
+}
+
+.form-group {
+  margin-bottom: var(--spacing-md);
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: var(--spacing-xs);
+  font-weight: 500;
+}
+
+.form-control {
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-normal);
+}
+
+.rich-text-editor {
+  min-height: 150px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  padding: var(--spacing-sm);
+  overflow-y: auto;
+  background-color: white;
+}
+
+.editor-toolbar {
+  display: flex;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+}
+
+.editor-toolbar button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-color);
+  background-color: var(--background-light);
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.editor-toolbar button:hover {
+  background-color: var(--background-color);
+}
+
+.style-options {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+.style-option {
+  flex: 1;
+}
+
+.color-picker {
+  width: 100%;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+}
+
+/* 文件上传相关样式 */
+.file-upload-section {
+  margin-top: var(--spacing-sm);
+}
+
+.upload-controls {
+  margin-bottom: var(--spacing-sm);
+}
+
+.upload-progress {
+  margin: var(--spacing-sm) 0;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background-color: var(--background-light);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--primary-color);
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  margin: var(--spacing-xs) 0 0 0;
+  font-size: var(--font-size-small);
+  color: var(--text-light);
+}
+
+.files-list {
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.file-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.file-item:last-child {
+  border-bottom: none;
+}
+
+.file-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-name {
+  font-size: var(--font-size-normal);
+  color: var(--text-color);
+  word-break: break-all;
+}
+
+.file-size {
+  font-size: var(--font-size-small);
+  color: var(--text-light);
+}
+
+.file-actions {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.file-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  text-decoration: none;
+  color: var(--primary-color);
+  border-radius: var(--border-radius-sm);
+  transition: background-color 0.2s ease;
+}
+
+.file-link:hover {
+  background-color: var(--background-light);
+}
+
+.empty-files {
+  padding: var(--spacing-md);
+  text-align: center;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--border-radius-sm);
+}
+
+.empty-text {
+  margin: 0;
+  color: var(--text-light);
+  font-size: var(--font-size-small);
+}

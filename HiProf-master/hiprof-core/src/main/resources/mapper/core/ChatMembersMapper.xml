@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hiprof.core.mapper.ChatMembersMapper">
+    
+    <resultMap type="ChatMembers" id="ChatMembersResult">
+        <result property="id"    column="id"    />
+        <result property="sessionId"    column="session_id"    />
+        <result property="userId"    column="user_id"    />
+        <result property="role"    column="role"    />
+        <result property="unreadCount"    column="unread_count"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+    </resultMap>
+
+    <sql id="selectChatMembersVo">
+        select id, session_id, user_id, role, unread_count, create_time, update_time from chat_members
+    </sql>
+
+    <select id="selectChatMembersList" parameterType="ChatMembers" resultMap="ChatMembersResult">
+        <include refid="selectChatMembersVo"/>
+        <where>  
+            <if test="sessionId != null "> and session_id = #{sessionId}</if>
+            <if test="userId != null "> and user_id = #{userId}</if>
+            <if test="role != null  and role != ''"> and role = #{role}</if>
+            <if test="createTime != null "> and create_time = #{createTime}</if>
+            <if test="updateTime != null "> and update_time = #{updateTime}</if>
+        </where>
+    </select>
+    
+    <select id="selectChatMembersById" parameterType="Long" resultMap="ChatMembersResult">
+        <include refid="selectChatMembersVo"/>
+        where id = #{id}
+    </select>
+
+
+    <select id="selectChatMembers" parameterType="Long" resultMap="ChatMembersResult">
+        <include refid="selectChatMembersVo"/>
+        where session_id = #{sessionId} and user_id = #{userId}
+    </select>
+
+    <insert id="insertChatMembers" parameterType="ChatMembers" useGeneratedKeys="true" keyProperty="id">
+        insert into chat_members
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="sessionId != null">session_id,</if>
+            <if test="userId != null">user_id,</if>
+            <if test="role != null">role,</if>
+            <if test="unreadCount != null">unread_count,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="sessionId != null">#{sessionId},</if>
+            <if test="userId != null">#{userId},</if>
+            <if test="role != null">#{role},</if>
+            <if test="unreadCount != null">#{unreadCount},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+         </trim>
+    </insert>
+
+
+    <insert id="batchInsertChatMembers">
+        insert into chat_members
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <!-- 只取第一条记录来确定字段名 -->
+            <if test="membersList != null and membersList.size() > 0">
+                <if test="membersList[0].sessionId != null">session_id,</if>
+                <if test="membersList[0].userId != null">user_id,</if>
+                <if test="membersList[0].role != null">role,</if>
+                <if test="membersList[0].unreadCount != null">unread_count,</if>
+                <if test="membersList[0].createTime != null">create_time,</if>
+                <if test="membersList[0].updateTime != null">update_time,</if>
+            </if>
+        </trim>
+        values
+        <foreach collection="membersList" item="item" separator=",">
+            <trim prefix="(" suffix=")" suffixOverrides=",">
+                <if test="item.sessionId != null">#{item.sessionId},</if>
+                <if test="item.userId != null">#{item.userId},</if>
+                <if test="item.role != null">#{item.role},</if>
+                <if test="item.unreadCount != null">#{item.unreadCount},</if>
+                <if test="item.createTime != null">#{item.createTime},</if>
+                <if test="item.updateTime != null">#{item.updateTime},</if>
+            </trim>
+        </foreach>
+    </insert>
+
+    <update id="updateChatMembers" parameterType="ChatMembers">
+        update chat_members
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="sessionId != null">session_id = #{sessionId},</if>
+            <if test="userId != null">user_id = #{userId},</if>
+            <if test="role != null">role = #{role},</if>
+            <if test="unreadCount != null">unread_count = #{unreadCount},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteChatMembersById" parameterType="Long">
+        delete from chat_members where id = #{id}
+    </delete>
+
+    <delete id="deleteChatMembersByIds" parameterType="String">
+        delete from chat_members where id in 
+        <foreach item="id" collection="ids" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <delete id="deleteChatMembersBySessionIds" parameterType="String">
+        delete from chat_members where session_id in
+        <foreach item="id" collection="ids" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+
+
+</mapper>

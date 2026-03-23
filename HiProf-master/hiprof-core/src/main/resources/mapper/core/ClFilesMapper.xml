@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hiprof.core.mapper.ClFilesMapper">
+    
+    <resultMap type="ClFiles" id="ClFilesResult">
+        <result property="id"    column="id"    />
+        <result property="courseId"    column="course_id"    />
+        <result property="fileUrl"    column="file_url"    />
+        <result property="fileType"    column="file_type"    />
+        <result property="fileSize"    column="file_size"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="fileKey"    column="file_key"    />
+        <result property="fileName"    column="file_name"    />
+    </resultMap>
+
+    <sql id="selectClFilesVo">
+        select id, course_id, file_url, file_type, file_size, create_by, create_time, update_time, file_key,file_name from cl_files
+    </sql>
+
+    <select id="selectClFilesList" parameterType="ClFiles" resultMap="ClFilesResult">
+        <include refid="selectClFilesVo"/>
+        <where>  
+            <if test="courseId != null "> and course_id = #{courseId}</if>
+            <if test="fileType != null  and fileType != ''"> and file_type = #{fileType}</if>
+            <if test="fileSize != null "> and file_size = #{fileSize}</if>
+            <if test="fileName != null "> and file_name like '%' || #{fileName}</if>
+            <if test="createBy != null "> and create_by = #{createBy}</if>
+        </where>
+    </select>
+    
+    <select id="selectClFilesById" parameterType="Long" resultMap="ClFilesResult">
+        <include refid="selectClFilesVo"/>
+        where id = #{id}
+    </select>
+
+
+    <select id="selectClFilesListByIds" parameterType="Long" resultMap="ClFilesResult">
+        <include refid="selectClFilesVo"/>
+        where id in <foreach item="id" collection="ids" open="(" separator="," close=")">#{id} </foreach>
+    </select>
+
+    <insert id="insertClFiles" parameterType="ClFiles" useGeneratedKeys="true" keyProperty="id">
+        insert into cl_files
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="courseId != null">course_id,</if>
+            <if test="fileUrl != null and fileUrl != ''">file_url,</if>
+            <if test="fileType != null and fileType != ''">file_type,</if>
+            <if test="fileSize != null">file_size,</if>
+            <if test="fileKey != null">file_key,</if>
+            <if test="fileName != null">file_name,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="courseId != null">#{courseId},</if>
+            <if test="fileUrl != null and fileUrl != ''">#{fileUrl},</if>
+            <if test="fileType != null and fileType != ''">#{fileType},</if>
+            <if test="fileSize != null">#{fileSize},</if>
+            <if test="fileKey != null">#{fileKey},</if>
+            <if test="fileName != null">#{fileName},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+         </trim>
+    </insert>
+
+    <update id="updateClFiles" parameterType="ClFiles">
+        update cl_files
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="courseId != null">course_id = #{courseId},</if>
+            <if test="fileUrl != null and fileUrl != ''">file_url = #{fileUrl},</if>
+            <if test="fileType != null and fileType != ''">file_type = #{fileType},</if>
+            <if test="fileSize != null">file_size = #{fileSize},</if>
+            <if test="fileKey != null">file_key = #{fileKey},</if>
+            <if test="fileName != null">file_name = #{fileName},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteClFilesById" parameterType="Long">
+        delete from cl_files where id = #{id}
+    </delete>
+
+    <delete id="deleteClFilesByIds" parameterType="String">
+        delete from cl_files where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

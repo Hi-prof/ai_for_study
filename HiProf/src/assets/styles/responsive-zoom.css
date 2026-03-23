@@ -1,0 +1,206 @@
+/* 响应式缩放支持 - 针对浏览器缩放优化 */
+
+/* 基础缩放适配 */
+html {
+  /* 确保基础字体大小支持浏览器缩放 */
+  font-size: 16px;
+  /* 防止iOS Safari缩放时字体大小调整 */
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* 容器缩放适配 */
+.zoom-container {
+  /* 使用相对单位确保缩放时比例正确 */
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* 文本缩放优化 */
+.zoom-text {
+  /* 使用clamp确保文本在所有缩放级别下可读 */
+  font-size: clamp(0.875rem, 2vw, 1.125rem);
+  line-height: 1.5;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.zoom-heading {
+  font-size: clamp(1.25rem, 4vw, 2.5rem);
+  line-height: 1.2;
+  margin-bottom: clamp(0.5rem, 2vw, 1rem);
+}
+
+/* 间距缩放适配 */
+.zoom-spacing-sm { margin: clamp(0.25rem, 1vw, 0.5rem); }
+.zoom-spacing-md { margin: clamp(0.5rem, 2vw, 1rem); }
+.zoom-spacing-lg { margin: clamp(1rem, 3vw, 2rem); }
+
+.zoom-padding-sm { padding: clamp(0.25rem, 1vw, 0.5rem); }
+.zoom-padding-md { padding: clamp(0.5rem, 2vw, 1rem); }
+.zoom-padding-lg { padding: clamp(1rem, 3vw, 2rem); }
+
+/* 按钮缩放适配 */
+.zoom-button {
+  padding: clamp(0.5rem, 2vw, 1rem) clamp(1rem, 3vw, 2rem);
+  font-size: clamp(0.75rem, 1.8vw, 1rem);
+  border-radius: clamp(0.25rem, 1vw, 0.5rem);
+  min-height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-normal) ease;
+}
+
+/* 图标缩放适配 */
+.zoom-icon {
+  width: clamp(1rem, 3vw, 2rem);
+  height: clamp(1rem, 3vw, 2rem);
+  flex-shrink: 0;
+}
+
+/* 卡片缩放适配 */
+.zoom-card {
+  padding: clamp(1rem, 3vw, 2rem);
+  border-radius: clamp(0.5rem, 1.5vw, 1rem);
+  margin-bottom: clamp(0.5rem, 2vw, 1rem);
+}
+
+/* 网格缩放适配 */
+.zoom-grid {
+  display: grid;
+  gap: clamp(0.5rem, 2vw, 1.5rem);
+  grid-template-columns: repeat(auto-fit, minmax(clamp(15rem, 30vw, 20rem), 1fr));
+}
+
+/* 浏览器缩放级别特定优化 */
+
+/* 50% 缩放优化 */
+@media (max-resolution: 0.5dppx) {
+  .zoom-container {
+    transform-origin: top left;
+  }
+  
+  .zoom-text {
+    font-size: clamp(1rem, 2.5vw, 1.5rem);
+  }
+  
+  .zoom-button {
+    min-height: 3rem;
+    padding: clamp(0.75rem, 2.5vw, 1.25rem) clamp(1.5rem, 4vw, 2.5rem);
+  }
+}
+
+/* 200% 缩放优化 */
+@media (min-resolution: 2dppx) {
+  .zoom-text {
+    font-size: clamp(0.75rem, 1.5vw, 1rem);
+    line-height: 1.6;
+  }
+  
+  .zoom-button {
+    min-height: 2rem;
+    padding: clamp(0.375rem, 1.5vw, 0.75rem) clamp(0.75rem, 2.5vw, 1.5rem);
+  }
+  
+  .zoom-spacing-md { margin: clamp(0.25rem, 1.5vw, 0.75rem); }
+}
+
+/* 高DPI屏幕优化 */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .zoom-container {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* 触摸设备缩放优化 */
+@media (hover: none) and (pointer: coarse) {
+  .zoom-button {
+    min-height: 3rem;
+    padding: clamp(0.75rem, 3vw, 1.25rem) clamp(1.25rem, 4vw, 2rem);
+  }
+  
+  .zoom-text {
+    font-size: clamp(1rem, 2.5vw, 1.25rem);
+    line-height: 1.6;
+  }
+}
+
+/* 减少动效模式下的缩放优化 */
+@media (prefers-reduced-motion: reduce) {
+  .zoom-container * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* 高对比度模式下的缩放优化 */
+@media (prefers-contrast: high) {
+  .zoom-text {
+    font-weight: 500;
+  }
+  
+  .zoom-button {
+    border: 2px solid currentColor;
+    font-weight: 600;
+  }
+}
+
+/* 浏览器特定优化 */
+
+/* Chrome/Edge 缩放优化 */
+@supports (-webkit-appearance: none) {
+  .zoom-container {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
+}
+
+/* Firefox 缩放优化 */
+@-moz-document url-prefix() {
+  .zoom-text {
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Safari 缩放优化 */
+@supports (-webkit-backdrop-filter: blur(1px)) {
+  .zoom-container {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+}
+
+/* 极端缩放级别处理 */
+@media (max-width: 320px) {
+  .zoom-container {
+    min-width: 320px;
+    overflow-x: auto;
+  }
+}
+
+@media (min-width: 2560px) {
+  .zoom-container {
+    max-width: 2560px;
+    margin: 0 auto;
+  }
+}
+
+/* 缩放时的性能优化 */
+.zoom-performance {
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* 缩放时的布局稳定性 */
+.zoom-stable {
+  contain: layout style paint;
+  content-visibility: auto;
+}

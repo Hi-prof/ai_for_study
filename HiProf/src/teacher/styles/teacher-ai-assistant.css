@@ -1,0 +1,428 @@
+/* AI助手面板样式 */
+
+/* 模态框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  max-width: 500px;
+  width: 90%;
+  max-height: 70vh;
+  overflow: hidden;
+  animation: slideIn 0.3s ease;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.modal-body {
+  padding: 24px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.modal-description {
+  margin: 0 0 16px 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: #6b7280;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #f3f4f6;
+  border-top: 3px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 12px;
+}
+
+.course-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.course-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 16px;
+  border: 2px solid #f3f4f6;
+  border-radius: 8px;
+  background: #ffffff;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.course-item:hover {
+  border-color: #3b82f6;
+  background: #f8fafc;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+}
+
+.course-info {
+  flex: 1;
+}
+
+.course-name {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.course-desc {
+  margin: 0;
+  font-size: 14px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.course-action {
+  margin-left: 16px;
+}
+
+.arrow-icon {
+  font-size: 18px;
+  color: #9ca3af;
+  transition: all 0.2s ease;
+}
+
+.course-item:hover .arrow-icon {
+  color: #3b82f6;
+  transform: translateX(4px);
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary {
+  background: #6b7280;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: #4b5563;
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { 
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* AI助手面板样式 */
+.ai-assistant-panel {
+  flex: 1;
+  overflow: hidden;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* AI助手模块网格样式 */
+.ai-modules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+/* 响应式布局 */
+@media (min-width: 1200px) {
+  .ai-modules-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .ai-modules-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .ai-modules-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.module-card {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  border: 1px solid #f0f0f0;
+  overflow: hidden;
+  min-height: 280px;
+}
+
+.module-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  border-color: #d1d5db;
+}
+
+.module-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 1.5rem 1rem;
+  position: relative;
+}
+
+.module-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* AI助手模块图标颜色 */
+.ai-lesson-icon {
+  background: linear-gradient(135deg, #4F9CF9 0%, #3B82F6 100%);
+}
+
+.ai-ppt-icon {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+}
+
+.ai-chat-icon {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+}
+
+.module-icon i {
+  font-size: 24px;
+  color: white;
+}
+
+/* AI助手图标样式 */
+.icon-ai-lesson::before {
+  content: "📝";
+  font-style: normal;
+}
+
+.icon-ai-ppt::before {
+  content: "📈";
+  font-style: normal;
+}
+
+.icon-ai-chat::before {
+  content: "🤖";
+  font-style: normal;
+}
+
+.module-content {
+  flex: 1;
+  padding: 0 1.5rem 1rem;
+  text-align: left;
+}
+
+.module-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 0.5rem 0;
+}
+
+.module-desc {
+  font-size: 0.875rem;
+  color: #6b7280;
+  line-height: 1.5;
+  margin: 0 0 1rem 0;
+}
+
+.module-footer {
+  padding: 1rem 1.5rem 1.5rem;
+  border-top: 1px solid #f3f4f6;
+  background: rgba(249, 250, 251, 0.5);
+}
+
+.module-btn {
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-blue {
+  background: #3B82F6;
+  color: white;
+}
+
+.btn-blue:hover {
+  background: #2563EB;
+}
+
+.btn-green {
+  background: #10B981;
+  color: white;
+}
+
+.btn-green:hover {
+  background: #059669;
+}
+
+.btn-orange {
+  background: #F59E0B;
+  color: white;
+}
+
+.btn-orange:hover {
+  background: #D97706;
+}
+
+.btn-purple {
+  background: #8B5CF6;
+  color: white;
+}
+
+.btn-purple:hover {
+  background: #7C3AED;
+}
+
+/* 模块特定样式 */
+.my-lessons-icon {
+  background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+}
+
+.my-lessons-card:hover .my-lessons-icon {
+  transform: scale(1.1);
+}
+
+/* 图标内容 */
+.icon-my-lessons::before {
+  content: '📚';
+  font-size: 24px;
+}
+
+/* 响应式设计优化 */
+@media (max-width: 768px) {
+  .module-card {
+    min-height: 240px;
+  }
+  
+  .module-header {
+    padding: 1.25rem 1.25rem 0.75rem;
+  }
+  
+  .module-content {
+    padding: 0 1.25rem 0.75rem;
+  }
+  
+  .module-footer {
+    padding: 0.75rem 1.25rem 1.25rem;
+  }
+  
+  .module-icon {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .module-icon i {
+    font-size: 20px;
+  }
+}

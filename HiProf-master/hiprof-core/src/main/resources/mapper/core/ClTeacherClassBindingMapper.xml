@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hiprof.core.mapper.ClTeacherClassBindingMapper">
+
+    <resultMap type="ClTeacherClassBinding" id="ClTeacherClassBindingResult">
+        <result property="id"         column="id" />
+        <result property="teacherId"  column="teacher_id" />
+        <result property="majorId"    column="major_id" />
+        <result property="className"  column="class_name" />
+        <result property="createTime" column="create_time" />
+        <result property="updateTime" column="update_time" />
+    </resultMap>
+
+    <sql id="selectClTeacherClassBindingVo">
+        select id, teacher_id, major_id, class_name, create_time, update_time
+        from cl_teacher_class_binding
+    </sql>
+
+    <select id="selectClTeacherClassBindingListByTeacherId" parameterType="Long" resultMap="ClTeacherClassBindingResult">
+        <include refid="selectClTeacherClassBindingVo" />
+        where teacher_id = #{teacherId}
+        order by major_id asc, class_name asc, id asc
+    </select>
+
+    <insert id="insertClTeacherClassBinding" parameterType="ClTeacherClassBinding" useGeneratedKeys="true" keyProperty="id">
+        insert into cl_teacher_class_binding
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="teacherId != null">teacher_id,</if>
+            <if test="majorId != null">major_id,</if>
+            <if test="className != null and className != ''">class_name,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="teacherId != null">#{teacherId},</if>
+            <if test="majorId != null">#{majorId},</if>
+            <if test="className != null and className != ''">#{className},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+        </trim>
+    </insert>
+
+    <delete id="deleteClTeacherClassBindingByTeacherId" parameterType="Long">
+        delete from cl_teacher_class_binding where teacher_id = #{teacherId}
+    </delete>
+
+    <delete id="deleteClTeacherClassBindingByTeacherIds" parameterType="Long">
+        delete from cl_teacher_class_binding where teacher_id in
+        <foreach collection="array" item="teacherId" open="(" separator="," close=")">
+            #{teacherId}
+        </foreach>
+    </delete>
+</mapper>

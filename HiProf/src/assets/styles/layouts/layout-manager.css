@@ -1,0 +1,52 @@
+/* 布局样式管理器 - 统一导入所有布局样式 */
+
+/* 导入各种布局样式 */
+@import './center-layout.css';
+@import './horizontal-tree-layout.css';
+
+/* 基础节点样式重置 */
+.rel-node,
+.rel-node-peel,
+.rel-node-peel-checked,
+.rel-nodediv {
+  transition: all 0.3s ease;
+  border: none;
+  outline: none;
+}
+
+/* 基础连线样式 */
+.rel-line {
+  transition: all 0.2s ease;
+}
+
+/* 通用文本样式 */
+.c-node-text {
+  color: #333;
+  font-weight: 500;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .layout-horizontal-tree .rel-node,
+  .layout-horizontal-tree .rel-node-peel,
+  .layout-horizontal-tree .rel-nodediv {
+    width: 100px !important;
+    height: 50px !important;
+  }
+  
+  .layout-vertical-tree .rel-node,
+  .layout-vertical-tree .rel-node-peel,
+  .layout-vertical-tree .rel-nodediv {
+    width: 50px !important;
+    height: 100px !important;
+  }
+  
+  .layout-center .rel-node,
+  .layout-center .rel-node-peel,
+  .layout-center .rel-nodediv {
+    width: 60px !important;
+    height: 60px !important;
+  }
+}

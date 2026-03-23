@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hiprof.core.mapper.ClCoursesMapper">
+    
+    <resultMap type="ClCourses" id="ClCoursesResult">
+        <result property="id"    column="id"    />
+        <result property="name"    column="name"    />
+        <result property="description"    column="description"    />
+        <result property="majorId"    column="major_id"    />
+        <result property="className"    column="class_name"    />
+        <result property="teacherId"    column="teacher_id"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+    </resultMap>
+
+    <sql id="selectClCoursesVo">
+        select id, name, description, major_id, class_name, teacher_id, create_time, update_time from cl_courses
+    </sql>
+
+    <select id="selectClCoursesList" parameterType="ClCourses" resultMap="ClCoursesResult">
+        <include refid="selectClCoursesVo"/>
+        <where>  
+            <if test="name != null  and name != ''"> and name like concat('%', #{name}, '%')</if>
+            <if test="majorId != null "> and major_id = #{majorId}</if>
+            <if test="className != null and className != ''"> and class_name like concat('%', #{className}, '%')</if>
+            <if test="teacherId != null "> and teacher_id = #{teacherId}</if>
+        </where>
+    </select>
+    
+    <select id="selectClCoursesById" parameterType="Long" resultMap="ClCoursesResult">
+        <include refid="selectClCoursesVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertClCourses" parameterType="ClCourses" useGeneratedKeys="true" keyProperty="id">
+        insert into cl_courses
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="name != null and name != ''">name,</if>
+            <if test="description != null">description,</if>
+            <if test="majorId != null">major_id,</if>
+            <if test="className != null and className != ''">class_name,</if>
+            <if test="teacherId != null">teacher_id,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="name != null and name != ''">#{name},</if>
+            <if test="description != null">#{description},</if>
+            <if test="majorId != null">#{majorId},</if>
+            <if test="className != null and className != ''">#{className},</if>
+            <if test="teacherId != null">#{teacherId},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+         </trim>
+    </insert>
+
+    <update id="updateClCourses" parameterType="ClCourses">
+        update cl_courses
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="name != null and name != ''">name = #{name},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="majorId != null">major_id = #{majorId},</if>
+            <if test="className != null">class_name = #{className},</if>
+            <if test="teacherId != null">teacher_id = #{teacherId},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteClCoursesById" parameterType="Long">
+        delete from cl_courses where id = #{id}
+    </delete>
+
+    <delete id="deleteClCoursesByIds" parameterType="String">
+        delete from cl_courses where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>

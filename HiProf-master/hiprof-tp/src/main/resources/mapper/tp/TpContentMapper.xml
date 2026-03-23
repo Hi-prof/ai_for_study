@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hiprof.tp.mapper.TpContentMapper">
+    
+    <resultMap type="TpContent" id="TpContentResult">
+        <result property="id"    column="id"    />
+        <result property="moduleId"    column="module_id"    />
+        <result property="content"    column="content"    />
+        <result property="fileUrl"    column="file_url"    />
+    </resultMap>
+
+    <sql id="selectTpContentVo">
+        select id, module_id, content, file_url from tp_content
+    </sql>
+
+    <select id="selectTpContentList" parameterType="TpContent" resultMap="TpContentResult">
+        <include refid="selectTpContentVo"/>
+        <where>  
+            <if test="id != null "> and id = #{id}</if>
+            <if test="moduleId != null "> and module_id = #{moduleId}</if>
+        </where>
+    </select>
+    
+    <select id="selectTpContentById" parameterType="Long" resultMap="TpContentResult">
+        <include refid="selectTpContentVo"/>
+        where id = #{id}
+    </select>
+
+    <insert id="insertTpContent" parameterType="TpContent" useGeneratedKeys="true" keyProperty="id">
+        insert into tp_content
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="moduleId != null">module_id,</if>
+            <if test="content != null">content,</if>
+            <if test="fileUrl != null">file_url,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="moduleId != null">#{moduleId},</if>
+            <if test="content != null">#{content},</if>
+            <if test="fileUrl != null">#{fileUrl},</if>
+         </trim>
+    </insert>
+
+    <update id="updateTpContent" parameterType="TpContent">
+        update tp_content
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="moduleId != null">module_id = #{moduleId},</if>
+            <if test="content != null">content = #{content},</if>
+            <if test="fileUrl != null">file_url = #{fileUrl},</if>
+        </trim>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteTpContentById" parameterType="Long">
+        delete from tp_content where id = #{id}
+    </delete>
+
+    <delete id="deleteTpContentByIds" parameterType="String">
+        delete from tp_content where id in 
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+</mapper>
