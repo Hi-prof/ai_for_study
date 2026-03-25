@@ -14,7 +14,16 @@
           <span v-if="structuredNode.isFocus" class="focus-badge">重点节点</span>
         </div>
         <div v-if="lightCardItems.length > 0" class="card-block">
-          <div class="card-block-title">轻卡片</div>
+          <div class="card-block-title-row">
+            <div class="card-block-title">轻卡片</div>
+            <button
+              class="generate-deep-card-button"
+              @click="generateDeepCard"
+              :disabled="isGeneratingDeepCard"
+            >
+              {{ isGeneratingDeepCard ? '生成中...' : '生成深卡片' }}
+            </button>
+          </div>
           <div v-for="item in lightCardItems" :key="item.label" class="card-item">
             <div class="card-item-label">{{ item.label }}</div>
             <div class="card-item-value">{{ item.value }}</div>
@@ -123,6 +132,7 @@
 <script lang="ts" setup>
 import { ref, watch, computed, onMounted } from 'vue';
 import { useChapterFileUpload } from '@/composables/useChapterFileUpload';
+import { generateKnowledgeAgentDeepCard } from '@/api/graph';
 
 // Define interfaces for props
 interface Node {
@@ -144,7 +154,8 @@ interface RelatedNode {
 const props = defineProps<{
   node: Node,
   relatedNodes: RelatedNode[],
-  courseId?: string | number
+  courseId?: string | number,
+  courseName?: string
 }>();
 
 // Define emits
@@ -169,6 +180,7 @@ const imageResult = ref<string | null>(null);
 const resources = ref<any[]>([]);
 const contentLength = ref(0);
 const fileInput = ref<HTMLInputElement | null>(null);
+const isGeneratingDeepCard = ref(false);
 
 // 计算属性 - 当前节点的文件列表
 const nodeFiles = computed(() => {
@@ -280,6 +292,65 @@ const saveChanges = () => {
 
   console.log('准备发送的保存数据:', saveData);
   emit('save', saveData);
+};
+
+const buildDeepCardSourceText = () => {
+  const structured = structuredNode.value;
+  if (!structured) {
+    return title.value || '';
+  }
+
+  const parts = [
+    `节点标题: ${title.value || structured.title || ''}`,
+    structured.lightweightCard?.definition ? `定义: ${structured.lightweightCard.definition}` : '',
+    Array.isArray(structured.lightweightCard?.keywords) && structured.lightweightCard.keywords.length
+      ? `关键词: ${structured.lightweightCard.keywords.join('、')}`
+      : '',
+    structured.lightweightCard?.example ? `示例: ${structured.lightweightCard.example}` : '',
+    Array.isArray(structured.lightweightCard?.relatedKnowledge) && structured.lightweightCard.relatedKnowledge.length
+      ? `关联知识: ${structured.lightweightCard.relatedKnowledge.join('、')}`
+      : ''
+  ];
+
+  return parts.filter(Boolean).join('\n');
+};
+
+const generateDeepCard = async () => {
+  if (!structuredNode.value?.lightweightCard) {
+    alert('当前节点没有轻卡片，无法生成深卡片');
+    return;
+  }
+
+  isGeneratingDeepCard.value = true;
+  try {
+    const payload = {
+      courseName: props.courseName || '课程知识图谱',
+      sourceText: buildDeepCardSourceText(),
+      node: {
+        id: props.node.id,
+        title: title.value || structuredNode.value.title || props.node.text || props.node.name || '',
+        lightweightCard: structuredNode.value.lightweightCard,
+        isFocus: true
+      }
+    };
+
+    const response = await generateKnowledgeAgentDeepCard(payload);
+    const result = response?.data || response;
+    const updatedNode = {
+      ...structuredNode.value,
+      ...result?.node,
+      title: title.value || structuredNode.value.title || props.node.text || props.node.name || '',
+      isFocus: true,
+      deepCard: result?.deepCard || result?.node?.deepCard || null
+    };
+
+    rawContent.value = JSON.stringify(updatedNode);
+    content.value = '';
+  } catch (error: any) {
+    alert(error?.message || '生成深卡片失败');
+  } finally {
+    isGeneratingDeepCard.value = false;
+  }
 };
 
 const close = () => {
@@ -507,6 +578,34 @@ onMounted(() => {
   color: #0f172a;
   font-size: 14px;
   font-weight: 700;
+}
+
+.card-block-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.card-block-title-row .card-block-title {
+  margin-bottom: 0;
+}
+
+.generate-deep-card-button {
+  padding: 6px 12px;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.generate-deep-card-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .card-item + .card-item {
