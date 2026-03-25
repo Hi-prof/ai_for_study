@@ -122,7 +122,7 @@
 </template>
 
 <script setup>
-import { ref, computed, defineProps, defineEmits } from 'vue';
+import { computed, defineProps, defineEmits } from 'vue';
 
 // 定义组件属性
 const props = defineProps({
@@ -141,6 +141,10 @@ const props = defineProps({
     default: () => ({})
   },
   // 进度相关属性
+  loading: {
+    type: Boolean,
+    default: false
+  },
   progress: {
     type: Number,
     default: 0
@@ -175,8 +179,7 @@ const props = defineProps({
 // 定义组件事件
 const emit = defineEmits(['update:visible', 'confirm', 'cancel', 'navigate']);
 
-// 加载状态
-const loading = ref(false);
+const loading = computed(() => props.loading);
 
 // 计算属性
 const dialogTitle = computed(() => {

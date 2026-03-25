@@ -77,6 +77,7 @@
       v-model:visible="showDeleteDialog"
       :mode="deleteDialogMode"
       :course-data="deletingCourse"
+      :loading="deleteLoading"
       :progress="deleteProgress"
       :progress-text="deleteProgressText"
       :success-title="deleteSuccessTitle"
@@ -150,6 +151,7 @@ const editingCourse = ref({
 // 删除课程对话框状态
 const showDeleteDialog = ref(false);
 const deleteDialogMode = ref('confirm'); // 'confirm' | 'success'
+const deleteLoading = ref(false);
 const deleteProgress = ref(0);
 const deleteProgressText = ref('正在删除课程...');
 const deleteSuccessTitle = ref('');
@@ -542,8 +544,13 @@ const deleteCourseConfirm = (course) => {
 
   // 重置对话框状态
   deleteDialogMode.value = 'confirm';
+  deleteLoading.value = false;
   deleteProgress.value = 0;
   deleteProgressText.value = '正在删除课程...';
+  deleteSuccessTitle.value = '';
+  deleteSuccessMessage.value = '';
+  deleteSuccessDetails.value = '';
+  deleteSuccessNavigate.value = false;
 
   // 设置要删除的课程数据
   deletingCourse.value = {
@@ -562,7 +569,17 @@ const deleteCourseConfirm = (course) => {
 
 // 处理删除课程确认
 const handleDeleteCourse = async (courseData) => {
+  if (!courseData?.id) {
+    deleteSuccessTitle.value = '删除失败';
+    deleteSuccessMessage.value = '课程ID无效，无法删除';
+    deleteSuccessDetails.value = '';
+    deleteSuccessNavigate.value = false;
+    deleteDialogMode.value = 'success';
+    return;
+  }
+
   try {
+    deleteLoading.value = true;
 
 
     // 模拟进度更新
@@ -571,64 +588,40 @@ const handleDeleteCourse = async (courseData) => {
 
     const response = await deleteCourse(courseData.id);
 
+    if (!response || response.code !== 200 || response.error) {
+      throw new Error(response?.message || '删除课程失败');
+    }
+
     deleteProgress.value = 60;
     deleteProgressText.value = '正在删除课程数据...';
 
-    // 根据接口文档，检查响应是否成功
-    if (response && !response.error) {
+    deleteProgress.value = 80;
+    deleteProgressText.value = '正在更新课程列表...';
 
+    // 重新获取课程列表
+    await fetchCourses();
 
-      deleteProgress.value = 80;
-      deleteProgressText.value = '正在更新课程列表...';
-
-      // 重新获取课程列表
-      await fetchCourses();
-
-      deleteProgress.value = 100;
-      deleteProgressText.value = '删除完成！';
-
-      // 设置成功信息
-      deleteSuccessTitle.value = '课程删除成功！';
-      deleteSuccessMessage.value = `课程"${courseData.name}"已成功删除`;
-      deleteSuccessDetails.value = '相关的章节、作业、讨论等数据也已一并删除';
-
-      // 延迟切换到成功模式
-      setTimeout(() => {
-        deleteDialogMode.value = 'success';
-      }, 1000);
-
-    } else {
-
-      // 即使响应格式不完全符合预期，也尝试执行成功逻辑
-      await fetchCourses();
-
-      deleteSuccessTitle.value = '课程删除成功！';
-      deleteSuccessMessage.value = `课程"${courseData.name}"已成功删除`;
-      deleteSuccessDetails.value = '课程数据已从系统中移除';
-
-      setTimeout(() => {
-        deleteDialogMode.value = 'success';
-      }, 1000);
-    }
+    deleteProgress.value = 100;
+    deleteProgressText.value = '删除完成！';
+    deleteSuccessTitle.value = '课程删除成功！';
+    deleteSuccessMessage.value = `课程"${courseData.name}"已成功删除`;
+    deleteSuccessDetails.value = '相关的章节、作业、讨论等数据也已一并删除';
+    deleteSuccessNavigate.value = false;
+    deleteDialogMode.value = 'success';
   } catch (error) {
-
-
-    // 显示错误信息
     deleteSuccessTitle.value = '删除失败';
     deleteSuccessMessage.value = error.message || '删除课程时发生错误，请重试';
     deleteSuccessDetails.value = '';
     deleteSuccessNavigate.value = false;
-
-    setTimeout(() => {
-      deleteDialogMode.value = 'success';
-    }, 500);
+    deleteDialogMode.value = 'success';
+  } finally {
+    deleteLoading.value = false;
   }
 };
 
 // 处理删除课程取消
 const handleCancelDeleteCourse = () => {
-
-  // 重置状态
+  deleteLoading.value = false;
   deleteDialogMode.value = 'confirm';
   deleteProgress.value = 0;
 };

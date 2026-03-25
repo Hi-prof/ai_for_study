@@ -1698,6 +1698,42 @@ SET @biz_root_menu_id := (
 );
 
 -- =========================
+-- 2.x 作业表补齐
+-- 说明:
+-- - 课程删除会级联清理课程作业，若 cl_work 缺失会导致删除课程事务整体回滚。
+-- - 该表在代码与权限中已被使用，但历史整库脚本缺少建表语句，这里补齐为可重复执行版本。
+-- =========================
+SET @has_cl_work_table := (
+    SELECT COUNT(1)
+    FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'cl_work'
+);
+
+SET @sql_create_cl_work := IF(
+    @has_cl_work_table = 0,
+    'CREATE TABLE cl_work (
+        id BIGINT NOT NULL AUTO_INCREMENT COMMENT ''作业ID'',
+        name VARCHAR(255) NOT NULL COMMENT ''作业名称'',
+        t_file VARCHAR(500) NULL COMMENT ''教师上传文件'',
+        t_content LONGTEXT NULL COMMENT ''教师上传内容'',
+        s_file VARCHAR(500) NULL COMMENT ''学生上传文件'',
+        s_content LONGTEXT NULL COMMENT ''学生上传内容'',
+        course_id BIGINT NULL COMMENT ''所属课程ID'',
+        create_time DATETIME NULL COMMENT ''创建时间'',
+        update_time DATETIME NULL COMMENT ''更新时间'',
+        over_time DATETIME NULL COMMENT ''作业截止时间'',
+        PRIMARY KEY (id),
+        KEY idx_cl_work_course_id (course_id),
+        KEY idx_cl_work_over_time (over_time)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=''作业管理表''',
+    'SELECT ''cl_work table already exists'''
+);
+PREPARE stmt FROM @sql_create_cl_work;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- =========================
 -- 3. 业务权限菜单骨架
 -- 规则:
 -- - C 菜单的 perms 使用 xxx:list

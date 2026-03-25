@@ -1,5 +1,6 @@
 package com.hiprof.core.service.impl;
 
+import java.util.Arrays;
 import java.util.List;
 
 import com.hiprof.common.constant.Constants;
@@ -11,7 +12,10 @@ import com.hiprof.core.domain.ClCourseMembers;
 import com.hiprof.core.mapper.*;
 import com.hiprof.system.mapper.SysDeptMapper;
 import com.hiprof.system.mapper.SysRoleMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import com.hiprof.core.domain.ClCourses;
 import com.hiprof.core.service.IClStudentClassBindingService;
@@ -26,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class ClCoursesServiceImpl implements IClCoursesService {
+    private static final Logger log = LoggerFactory.getLogger(ClCoursesServiceImpl.class);
+
     @Autowired
     private ClCoursesMapper clCoursesMapper;
 
@@ -46,6 +52,9 @@ public class ClCoursesServiceImpl implements IClCoursesService {
 
     @Autowired
     private IClStudentClassBindingService clStudentClassBindingService;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     /**
      * 查询课程管理
@@ -159,7 +168,11 @@ public class ClCoursesServiceImpl implements IClCoursesService {
     @Transactional
     public int deleteClCoursesByIds(Long[] ids) {
         //一并删除课程积分，删除课程作业,删除课程下的图谱,删除课程下的成员
-        clWorkMapper.deleteClWorkByCourseIds(ids);
+        if (tableExists("cl_work")) {
+            clWorkMapper.deleteClWorkByCourseIds(ids);
+        } else {
+            log.warn("删除课程时跳过作业清理，数据表 cl_work 不存在，课程ID={}", Arrays.toString(ids));
+        }
         zstpGraphMapper.deleteZstpGraphByIds(ids);
         clCourseMembersMapper.deleteClCourseMembersByCourseIds(ids);
         return clCoursesMapper.deleteClCoursesByIds(ids);
@@ -190,6 +203,15 @@ public class ClCoursesServiceImpl implements IClCoursesService {
             }
         }
         return false;
+    }
+
+    private boolean tableExists(String tableName) {
+        Integer count = jdbcTemplate.queryForObject(
+            "SELECT COUNT(1) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
+            Integer.class,
+            tableName
+        );
+        return count != null && count > 0;
     }
 
 }
