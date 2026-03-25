@@ -20,16 +20,19 @@ from .models import (
 )
 from .pdf import extract_pdf_text
 from .prompts import (
+    build_chapter_skeleton_prompt,
+    build_course_overview_prompt,
+    build_course_topic_expansion_prompt,
     build_deep_card_prompt,
     build_light_card_prompt,
     build_single_deep_card_prompt,
-    build_skeleton_prompt,
 )
 from .store import task_store
 
 
 class KnowledgeGraphAgent:
-    LIGHT_CARD_BATCH_SIZE = 3
+    LIGHT_CARD_BATCH_SIZE = 6
+    MAX_SOURCE_CHARS = 12000
 
     def run_task(self, task_id: str) -> None:
         task = task_store.get(task_id)
@@ -168,26 +171,39 @@ class KnowledgeGraphAgent:
             combined = request.courseName
         return self._summarize_text(combined)
 
-    def _summarize_text(self, text: str, max_chars: int = 4000) -> str:
-        cleaned = re.sub(r"\s+", " ", text).strip()
-        return cleaned[:max_chars]
+    def _summarize_text(
+        self, text: str, max_chars: int | None = None
+    ) -> str:
+        normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+        lines = [
+            re.sub(r"\s+", " ", line).strip()
+            for line in normalized.split("\n")
+        ]
+        cleaned = "\n".join(line for line in lines if line)
+        return cleaned[: (max_chars or self.MAX_SOURCE_CHARS)]
 
     def _generate_skeleton(
         self, task: TaskRecord, request: GenerationRequest, source_summary: str
     ) -> tuple[list[GraphNode], str]:
         self._ensure_llm_enabled()
-        system_prompt, user_prompt = build_skeleton_prompt(
+        if request.graphType == "1":
+            return self._generate_chapter_skeleton(task, request, source_summary)
+        return self._generate_course_skeleton(task, request, source_summary)
+
+    def _generate_chapter_skeleton(
+        self, task: TaskRecord, request: GenerationRequest, source_summary: str
+    ) -> tuple[list[GraphNode], str]:
+        system_prompt, user_prompt = build_chapter_skeleton_prompt(
             request.courseName,
             request.teacherRequirements,
             source_summary,
-            request.graphType,
         )
         self._update(
             task,
             TaskStatus.running,
             TaskStage.generating_skeleton,
-            "Generating skeleton",
-            progress=self._progress_payload(2, 4, "调用骨架生成模型"),
+            "Generating chapter skeleton",
+            progress=self._progress_payload(2, 4, "调用章节骨架模型"),
         )
         payload = llm_client.complete_json(
             system_prompt, user_prompt, model=settings.skeleton_model
@@ -196,30 +212,170 @@ class KnowledgeGraphAgent:
             task,
             TaskStatus.running,
             TaskStage.generating_skeleton,
-            "Skeleton raw result received",
-            progress=self._progress_payload(3, 4, "整理骨架节点关系"),
+            "Chapter skeleton raw result received",
+            progress=self._progress_payload(3, 4, "整理章节节点关系"),
         )
-        result = self._normalize_skeleton_payload(
-            payload,
-            request.courseName,
-            source_summary,
-            request.graphType,
+        nodes, graph_title = self._normalize_flat_skeleton_payload(
+            payload, request.courseName
         )
         self._update(
             task,
             TaskStatus.running,
             TaskStage.generating_skeleton,
-            "Skeleton normalized",
-            progress=self._progress_payload(4, 4, "骨架节点整理完成"),
+            "Chapter skeleton normalized",
+            progress=self._progress_payload(4, 4, "章节骨架整理完成"),
         )
-        return result
+        return nodes, graph_title
 
-    def _normalize_skeleton_payload(
-        self,
-        payload: dict,
-        fallback_title: str,
-        source_summary: str,
-        graph_type: str = "0",
+    def _generate_course_skeleton(
+        self, task: TaskRecord, request: GenerationRequest, source_summary: str
+    ) -> tuple[list[GraphNode], str]:
+        target_plan = self._estimate_course_skeleton_plan(
+            source_summary, request.teacherRequirements
+        )
+        self._update(
+            task,
+            TaskStatus.running,
+            TaskStage.generating_skeleton,
+            "Planning course skeleton size",
+            progress=self._progress_payload(
+                2,
+                6,
+                f"规划骨架规模：一级主题 {target_plan['top_level_min']}-{target_plan['top_level_max']} 个",
+            ),
+        )
+        overview_system_prompt, overview_user_prompt = build_course_overview_prompt(
+            request.courseName,
+            request.teacherRequirements,
+            source_summary,
+            target_plan,
+        )
+        self._update(
+            task,
+            TaskStatus.running,
+            TaskStage.generating_skeleton,
+            "Generating top-level course topics",
+            progress=self._progress_payload(3, 6, "生成总览节点与一级主题"),
+        )
+        overview_payload = llm_client.complete_json(
+            overview_system_prompt,
+            overview_user_prompt,
+            model=settings.skeleton_model,
+        )
+        overview_nodes, graph_title = self._normalize_course_overview_payload(
+            overview_payload,
+            request.courseName,
+            source_summary,
+        )
+        topic_nodes = [node for node in overview_nodes if node.parentId == "summary"]
+        self._update(
+            task,
+            TaskStatus.running,
+            TaskStage.generating_skeleton,
+            "Top-level topics ready",
+            progress=self._progress_payload(
+                4,
+                6,
+                f"一级主题已生成，共 {len(topic_nodes)} 个",
+            ),
+        )
+        expansion_system_prompt, expansion_user_prompt = (
+            build_course_topic_expansion_prompt(
+                request.courseName,
+                request.teacherRequirements,
+                source_summary,
+                overview_nodes[0].title,
+                [self._node_stub(node) for node in topic_nodes],
+                target_plan,
+            )
+        )
+        self._update(
+            task,
+            TaskStatus.running,
+            TaskStage.generating_skeleton,
+            "Expanding lower-level topics",
+            progress=self._progress_payload(5, 6, "扩展二三级知识点"),
+        )
+        expansion_payload = llm_client.complete_json(
+            expansion_system_prompt,
+            expansion_user_prompt,
+            model=settings.skeleton_model,
+        )
+        expansion_nodes = self._build_course_expansion_nodes(
+            expansion_payload, topic_nodes
+        )
+        all_nodes = self._normalize_levels(overview_nodes + expansion_nodes)
+        self._update(
+            task,
+            TaskStatus.running,
+            TaskStage.generating_skeleton,
+            "Course skeleton expanded",
+            progress=self._progress_payload(
+                6,
+                6,
+                f"骨架扩展完成，共 {len(all_nodes)} 个节点",
+            ),
+        )
+        return all_nodes, graph_title
+
+    def _estimate_course_skeleton_plan(
+        self, source_summary: str, teacher_requirements: str
+    ) -> dict[str, int | bool]:
+        combined = "\n".join(
+            part.strip()
+            for part in [teacher_requirements, source_summary]
+            if part and part.strip()
+        )
+        char_count = len(combined)
+        line_count = len([line for line in combined.splitlines() if line.strip()])
+        structure_hits = len(
+            re.findall(
+                r"(第[一二三四五六七八九十百]+[章节单元]|chapter\s+\d+|unit\s+\d+|module\s+\d+|专题|模块|单元|知识点|学习目标|重点|难点|\d+\.\d+)",
+                combined,
+                flags=re.IGNORECASE,
+            )
+        )
+
+        top_level_min = 5
+        if char_count > 1400:
+            top_level_min += 1
+        if char_count > 3200:
+            top_level_min += 1
+        if structure_hits > 8 or line_count > 16:
+            top_level_min += 1
+        top_level_max = min(top_level_min + 2, 10)
+
+        child_min = 3
+        if char_count > 1800 or line_count > 12:
+            child_min += 1
+        if char_count > 4200 or structure_hits > 12:
+            child_min += 1
+        child_max = min(child_min + 1, 7)
+
+        allow_grandchildren = (
+            char_count > 1200 or structure_hits > 6 or line_count > 10
+        )
+        grandchild_min = 0
+        grandchild_max = 0
+        if allow_grandchildren:
+            grandchild_min = 1
+            grandchild_max = 2
+        if char_count > 4200 or structure_hits > 12:
+            grandchild_min = 2
+            grandchild_max = 3
+
+        return {
+            "top_level_min": top_level_min,
+            "top_level_max": top_level_max,
+            "child_min": child_min,
+            "child_max": child_max,
+            "grandchild_min": grandchild_min,
+            "grandchild_max": grandchild_max,
+            "allow_grandchildren": allow_grandchildren,
+        }
+
+    def _normalize_flat_skeleton_payload(
+        self, payload: dict, fallback_title: str
     ) -> tuple[list[GraphNode], str]:
         raw_nodes = payload.get("nodes") or []
         nodes: list[GraphNode] = []
@@ -244,112 +400,126 @@ class KnowledgeGraphAgent:
             )
         if not nodes:
             raise RuntimeError("Remote LLM returned no graph nodes")
-        if graph_type == "1":
-            normalized_nodes = self._normalize_levels(nodes)
-            return normalized_nodes, str(payload.get("graphTitle") or fallback_title)
-
-        normalized_nodes = self._ensure_summary_parent(
-            nodes,
-            fallback_title,
-            str(payload.get("summaryTitle") or ""),
-            source_summary,
+        return self._normalize_levels(nodes), str(
+            payload.get("graphTitle") or fallback_title
         )
-        return normalized_nodes, str(payload.get("graphTitle") or fallback_title)
 
-    def _ensure_summary_parent(
-        self,
-        nodes: list[GraphNode],
-        course_name: str,
-        summary_title: str,
-        source_summary: str,
-    ) -> list[GraphNode]:
-        normalized_nodes = self._unwrap_explicit_course_root(nodes, course_name)
-        normalized_nodes = self._normalize_levels(normalized_nodes)
+    def _normalize_course_overview_payload(
+        self, payload: dict, course_name: str, source_summary: str
+    ) -> tuple[list[GraphNode], str]:
+        summary_title = self._sanitize_summary_title(
+            payload.get("summaryTitle"), course_name
+        )
+        if not summary_title:
+            summary_title = self._sanitize_summary_title(source_summary, course_name)
+        if not summary_title:
+            summary_title = "课程内容总览"
 
-        root_nodes = [node for node in normalized_nodes if node.parentId is None]
-        if len(root_nodes) != 1:
-            summary_node = GraphNode(
-                id=self._next_node_id(normalized_nodes, "summary"),
-                title=self._resolve_summary_title(
-                    summary_title,
-                    root_nodes,
-                    course_name,
-                    source_summary,
-                ),
-                parentId=None,
-                level=1,
+        raw_topics = payload.get("topLevelTopics") or []
+        topic_nodes: list[GraphNode] = []
+        seen_titles: set[str] = set()
+        for item in raw_topics:
+            raw_title = item if isinstance(item, str) else item.get("title")
+            title = self._sanitize_topic_title(raw_title)
+            if not title or title in seen_titles:
+                continue
+            seen_titles.add(title)
+            topic_nodes.append(
+                GraphNode(
+                    id=f"topic_{len(topic_nodes) + 1}",
+                    title=title,
+                    parentId="summary",
+                    level=2,
+                )
             )
-            root_ids = {node.id for node in root_nodes}
-            for node in normalized_nodes:
-                if node.id in root_ids:
-                    node.parentId = summary_node.id
-            normalized_nodes.append(summary_node)
+        if not topic_nodes:
+            raise RuntimeError("Remote LLM returned no top-level topics")
 
-        return self._normalize_levels(normalized_nodes)
+        nodes = [
+            GraphNode(id="summary", title=summary_title, parentId=None, level=1),
+            *topic_nodes,
+        ]
+        return nodes, str(payload.get("graphTitle") or course_name)
 
-    def _unwrap_explicit_course_root(
-        self, nodes: list[GraphNode], course_name: str
+    def _build_course_expansion_nodes(
+        self, payload: dict, topic_nodes: list[GraphNode]
     ) -> list[GraphNode]:
-        if not course_name.strip():
-            return nodes
-
-        course_root_ids = {
-            node.id
-            for node in nodes
-            if node.parentId is None and self._titles_match(node.title, course_name)
+        raw_expansions = payload.get("topicExpansions") or []
+        expansion_map = {
+            str(item.get("topicId")): item
+            for item in raw_expansions
+            if isinstance(item, dict) and item.get("topicId")
         }
-        if not course_root_ids:
-            return nodes
+        nodes: list[GraphNode] = []
+        for topic in topic_nodes:
+            topic_payload = expansion_map.get(topic.id) or {}
+            children = topic_payload.get("children") or []
+            self._append_nested_nodes(
+                nodes,
+                parent_id=topic.id,
+                items=children,
+                level=topic.level + 1,
+                prefix=f"{topic.id}_child",
+            )
+        if not nodes:
+            raise RuntimeError("Remote LLM returned no expanded child topics")
+        return nodes
 
-        normalized_nodes = [node for node in nodes if node.id not in course_root_ids]
-        for node in normalized_nodes:
-            if node.parentId in course_root_ids:
-                node.parentId = None
-        return normalized_nodes
-
-    def _resolve_summary_title(
+    def _append_nested_nodes(
         self,
-        summary_title: str,
-        root_nodes: list[GraphNode],
-        course_name: str,
-        source_summary: str,
-    ) -> str:
-        candidates = [summary_title]
-        if len(root_nodes) == 1:
-            candidates.append(root_nodes[0].title)
+        collector: list[GraphNode],
+        parent_id: str,
+        items: list,
+        level: int,
+        prefix: str,
+    ) -> None:
+        for index, item in enumerate(items, start=1):
+            if not isinstance(item, dict):
+                continue
+            title = self._sanitize_topic_title(item.get("title"))
+            if not title:
+                continue
+            node_id = f"{prefix}_{index}"
+            node = GraphNode(
+                id=node_id,
+                title=title,
+                parentId=parent_id,
+                level=level,
+            )
+            collector.append(node)
+            nested_children = item.get("children") or []
+            if nested_children:
+                self._append_nested_nodes(
+                    collector,
+                    parent_id=node_id,
+                    items=nested_children,
+                    level=level + 1,
+                    prefix=f"{node_id}_child",
+                )
 
-        for candidate in candidates:
-            normalized = self._sanitize_summary_title(candidate, course_name)
-            if normalized:
-                return normalized
-
-        fallback = self._sanitize_summary_title(source_summary, course_name)
-        return fallback or "课程内容总结"
-
-    def _sanitize_summary_title(self, value: str, course_name: str) -> str:
-        cleaned = re.sub(r"\s+", " ", str(value or "")).strip(" ,，。；;：:")
+    def _sanitize_summary_title(self, value: object, course_name: str) -> str:
+        cleaned = re.sub(r"\s+", " ", str(value or "")).strip(" ,，。；;：:-")
         if not cleaned:
             return ""
-        if self._titles_match(cleaned, course_name):
-            return f"{course_name.strip()}内容总结"
-        if len(cleaned) <= 24:
-            return cleaned
+        if cleaned == course_name.strip():
+            return f"{course_name.strip()}内容总览"
         sentence = re.split(r"[。！？；;]", cleaned, maxsplit=1)[0].strip()
-        if sentence and len(sentence) <= 24:
-            return sentence
-        return cleaned[:24].rstrip(" ,，。；;：:") + "..."
+        candidate = sentence or cleaned
+        if len(candidate) > 24:
+            candidate = candidate[:24].rstrip(" ,，。；;：:-") + "..."
+        return candidate
 
-    def _next_node_id(self, nodes: list[GraphNode], prefix: str) -> str:
-        existing_ids = {node.id for node in nodes}
-        if prefix not in existing_ids:
-            return prefix
-        index = 2
-        while f"{prefix}_{index}" in existing_ids:
-            index += 1
-        return f"{prefix}_{index}"
-
-    def _titles_match(self, left: str, right: str) -> bool:
-        return left.strip().lower() == right.strip().lower()
+    def _sanitize_topic_title(self, value: object) -> str:
+        cleaned = re.sub(r"\s+", " ", str(value or "")).strip(" ,，。；;：:-")
+        cleaned = re.sub(
+            r"^(主题|Topic|知识点)\s*\d+\s*[:：-]?\s*",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        if len(cleaned) > 28:
+            cleaned = cleaned[:28].rstrip(" ,，。；;：:-") + "..."
+        return cleaned
 
     def _normalize_levels(self, nodes: list[GraphNode]) -> list[GraphNode]:
         if not nodes:
