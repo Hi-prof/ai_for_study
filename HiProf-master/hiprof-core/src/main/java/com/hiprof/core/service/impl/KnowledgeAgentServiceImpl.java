@@ -27,10 +27,12 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -199,7 +201,8 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
         }
 
         Long graphId = saveOrUpdateGraph(resultNode, requestNode, courseId, graphType, createBy);
-        replaceNodes(graphId, resultNode.path("nodes"));
+        String courseRootName = defaultText(requestNode.path("courseName"), defaultText(resultNode.path("graphTitle"), "课程知识图谱"));
+        replaceNodes(graphId, resultNode.path("nodes"), courseRootName);
         return new PersistResult(graphId, List.of(graphId));
     }
 
@@ -353,10 +356,10 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
         return graphList.get(0);
     }
 
-    private void replaceNodes(Long graphId, JsonNode nodesNode)
+    private void replaceNodes(Long graphId, JsonNode nodesNode, String courseRootName)
     {
         clearGraphNodes(graphId);
-        saveNodes(graphId, nodesNode);
+        saveNodes(graphId, nodesNode, courseRootName);
     }
 
     private void clearGraphNodes(Long graphId)
@@ -429,7 +432,7 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
         }
     }
 
-    private void saveNodes(Long graphId, JsonNode nodesNode)
+    private void saveNodes(Long graphId, JsonNode nodesNode, String courseRootName)
     {
         if (!nodesNode.isArray() || nodesNode.isEmpty())
         {
@@ -440,7 +443,7 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
         nodesNode.forEach(orderedNodes::add);
         orderedNodes.sort(Comparator.comparingInt(item -> item.path("level").asInt(99)));
 
-        Map<String, Long> nodeIdMapping = new HashMap<>();
+        Map<String, JsonNode> orderedNodesById = new LinkedHashMap<>();
         for (JsonNode item : orderedNodes)
         {
             String agentNodeId = defaultText(item.path("id"), null);
@@ -448,19 +451,121 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
             {
                 continue;
             }
-
-            String parentAgentId = defaultText(item.path("parentId"), null);
-            Long parentDbId = StringUtils.isBlank(parentAgentId) ? null : nodeIdMapping.get(parentAgentId);
-
-            ZstpNode zstpNode = new ZstpNode();
-            zstpNode.setGraphId(graphId);
-            zstpNode.setParentId(parentDbId);
-            zstpNode.setName(defaultText(item.path("title"), "未命名节点"));
-            zstpNode.setContent(writeJson(item));
-
-            long createdNodeId = zstpNodeService.insertZstpNode(zstpNode);
-            nodeIdMapping.put(agentNodeId, createdNodeId);
+            orderedNodesById.put(agentNodeId, item);
         }
+
+        if (orderedNodesById.isEmpty())
+        {
+            return;
+        }
+
+        Map<String, List<JsonNode>> childrenMap = buildGraphChildrenMap(orderedNodesById);
+        List<JsonNode> rootNodes = childrenMap.getOrDefault("root", List.of());
+
+        Map<String, Long> nodeIdMapping = new HashMap<>();
+        Set<String> savedAgentIds = new HashSet<>();
+        String resolvedCourseRootName = resolveCourseRootName(courseRootName);
+        Long entryParentId = null;
+
+        if (rootNodes.size() != 1 || !isCourseRootNode(rootNodes.get(0), resolvedCourseRootName))
+        {
+            entryParentId = insertSyntheticRootNode(graphId, resolvedCourseRootName);
+        }
+
+        for (JsonNode rootNode : rootNodes)
+        {
+            saveGraphNodeRecursive(graphId, rootNode, entryParentId, childrenMap, nodeIdMapping, savedAgentIds);
+        }
+
+        if (entryParentId == null && rootNodes.size() == 1)
+        {
+            String rootAgentId = defaultText(rootNodes.get(0).path("id"), null);
+            if (StringUtils.isNotBlank(rootAgentId))
+            {
+                entryParentId = nodeIdMapping.get(rootAgentId);
+            }
+        }
+
+        for (JsonNode node : orderedNodesById.values())
+        {
+            String agentNodeId = defaultText(node.path("id"), null);
+            if (StringUtils.isBlank(agentNodeId) || savedAgentIds.contains(agentNodeId))
+            {
+                continue;
+            }
+            saveGraphNodeRecursive(graphId, node, entryParentId, childrenMap, nodeIdMapping, savedAgentIds);
+        }
+    }
+
+    private Map<String, List<JsonNode>> buildGraphChildrenMap(Map<String, JsonNode> orderedNodesById)
+    {
+        Map<String, List<JsonNode>> childrenMap = new LinkedHashMap<>();
+        for (JsonNode node : orderedNodesById.values())
+        {
+            String parentAgentId = normalizeParentId(defaultText(node.path("parentId"), null));
+            if (!"root".equals(parentAgentId) && !orderedNodesById.containsKey(parentAgentId))
+            {
+                parentAgentId = "root";
+            }
+            childrenMap.computeIfAbsent(parentAgentId, key -> new ArrayList<>()).add(node);
+        }
+        return childrenMap;
+    }
+
+    private void saveGraphNodeRecursive(Long graphId, JsonNode node, Long parentDbId, Map<String, List<JsonNode>> childrenMap,
+                                        Map<String, Long> nodeIdMapping, Set<String> savedAgentIds)
+    {
+        String agentNodeId = defaultText(node.path("id"), null);
+        if (StringUtils.isBlank(agentNodeId) || savedAgentIds.contains(agentNodeId))
+        {
+            return;
+        }
+
+        Long createdNodeId = insertGraphNode(graphId, node, parentDbId);
+        nodeIdMapping.put(agentNodeId, createdNodeId);
+        savedAgentIds.add(agentNodeId);
+
+        List<JsonNode> childNodes = childrenMap.getOrDefault(agentNodeId, List.of());
+        for (JsonNode childNode : childNodes)
+        {
+            saveGraphNodeRecursive(graphId, childNode, createdNodeId, childrenMap, nodeIdMapping, savedAgentIds);
+        }
+    }
+
+    private Long insertGraphNode(Long graphId, JsonNode node, Long parentDbId)
+    {
+        ZstpNode zstpNode = new ZstpNode();
+        zstpNode.setGraphId(graphId);
+        zstpNode.setParentId(parentDbId);
+        zstpNode.setName(defaultText(node.path("title"), defaultText(node.path("name"), "未命名节点")));
+        zstpNode.setContent(writeJson(node));
+        return zstpNodeService.insertZstpNode(zstpNode);
+    }
+
+    private Long insertSyntheticRootNode(Long graphId, String courseRootName)
+    {
+        ZstpNode rootNode = new ZstpNode();
+        rootNode.setGraphId(graphId);
+        rootNode.setParentId(null);
+        rootNode.setName(courseRootName);
+        rootNode.setContent(courseRootName);
+        return zstpNodeService.insertZstpNode(rootNode);
+    }
+
+    private boolean isCourseRootNode(JsonNode node, String courseRootName)
+    {
+        if (node == null || StringUtils.isBlank(courseRootName))
+        {
+            return false;
+        }
+
+        String nodeName = defaultText(node.path("title"), defaultText(node.path("name"), null));
+        return StringUtils.equals(StringUtils.trim(nodeName), StringUtils.trim(courseRootName));
+    }
+
+    private String resolveCourseRootName(String courseRootName)
+    {
+        return StringUtils.defaultIfBlank(StringUtils.trim(courseRootName), "课程知识图谱");
     }
 
     private JsonNode executeJsonRequest(HttpMethod method, String url, Object payload)
