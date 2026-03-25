@@ -81,6 +81,7 @@
           ref="centerLayoutRef"
           :courseId="courseId"
           :graphId="currentKnowledgeGraph.id"
+          :course-name="courseName"
           :settings="graphSettings"
           @node-click="handleTreeNodeClick"
           @line-click="handleTreeLineClick"
@@ -92,6 +93,7 @@
           ref="treeLayoutRef"
           :courseId="courseId"
           :graphId="currentKnowledgeGraph.id"
+          :course-name="courseName"
           :settings="graphSettings"
           @node-click="handleTreeNodeClick"
           @line-click="handleTreeLineClick"
@@ -103,6 +105,7 @@
           ref="bidirectionalTreeLayoutRef"
           :courseId="courseId"
           :graphId="currentKnowledgeGraph.id"
+          :course-name="courseName"
           :settings="graphSettings"
           @node-click="handleTreeNodeClick"
           @line-click="handleTreeLineClick"
@@ -333,6 +336,10 @@ const handleSettingsUpdated = (newSettings) => {
 
 // 处理树形布局节点点击
 const handleTreeNodeClick = async (node) => {
+  if (!node || node.data?.isVirtualRoot) {
+    return;
+  }
+
   console.log('CourseKnowledgeGraph: 树形节点点击:', node);
 
   let detailContent = node.data?.content || '';
