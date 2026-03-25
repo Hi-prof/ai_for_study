@@ -4,11 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hiprof.common.exception.ServiceException;
 import com.hiprof.common.utils.StringUtils;
+import com.hiprof.core.domain.ClCourses;
 import com.hiprof.core.config.KnowledgeAgentProperties;
 import com.hiprof.core.domain.ZstpGraph;
 import com.hiprof.core.domain.ZstpNode;
 import com.hiprof.core.domain.dto.KnowledgeGraphGenerateRequest;
 import com.hiprof.core.domain.vo.ZstpGraphVo;
+import com.hiprof.core.service.IClCoursesService;
 import com.hiprof.core.service.IKnowledgeAgentService;
 import com.hiprof.core.service.IZstpGraphService;
 import com.hiprof.core.service.IZstpNodeService;
@@ -80,18 +82,26 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
     @Autowired
     private IZstpNodeService zstpNodeService;
 
+    @Autowired
+    private IClCoursesService clCoursesService;
+
     private JsonNode createTask(KnowledgeGraphGenerateRequest request)
     {
         if (!knowledgeAgentProperties.isEnabled())
         {
             throw new ServiceException("知识图谱智能体服务未启用");
         }
-        if (request == null || StringUtils.isBlank(request.getCourseName()))
+        if (request == null)
+        {
+            throw new ServiceException("课程名称不能为空");
+        }
+        String resolvedCourseName = resolveCourseName(request);
+        if (StringUtils.isBlank(resolvedCourseName))
         {
             throw new ServiceException("课程名称不能为空");
         }
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("courseName", request.getCourseName());
+        payload.put("courseName", resolvedCourseName);
         payload.put("teacherRequirements", StringUtils.defaultString(request.getTeacherRequirements()));
         payload.put("sourceText", StringUtils.defaultString(request.getSourceText()));
         payload.put("pdfPaths", request.getPdfPaths() == null ? List.of() : request.getPdfPaths());
@@ -145,7 +155,7 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
         result.put("graphId", persistResult.getPrimaryGraphId());
         result.put("graphIds", persistResult.getGraphIds());
         result.put("graphCount", persistResult.getGraphCount());
-        result.put("graphName", defaultText(completedTask.path("result").path("graphTitle"), request.getCourseName()));
+        result.put("graphName", defaultText(completedTask.path("result").path("graphTitle"), resolveCourseName(request)));
         result.put("result", completedTask.path("result"));
         result.put("task", completedTask);
         return result;
@@ -648,6 +658,37 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
     {
         String baseUrl = StringUtils.stripEnd(knowledgeAgentProperties.getBaseUrl(), "/");
         return baseUrl + "/api/v1/knowledge-agent/deep-card";
+    }
+
+    private String resolveCourseName(KnowledgeGraphGenerateRequest request)
+    {
+        if (request == null)
+        {
+            return "课程知识图谱";
+        }
+        String persistedCourseName = lookupCourseName(request.getCourseId());
+        return StringUtils.defaultIfBlank(persistedCourseName, StringUtils.defaultIfBlank(request.getCourseName(), "课程知识图谱"));
+    }
+
+    private String lookupCourseName(Long courseId)
+    {
+        if (courseId == null)
+        {
+            return null;
+        }
+        try
+        {
+            ClCourses course = clCoursesService.selectClCoursesById(courseId);
+            if (course == null)
+            {
+                return null;
+            }
+            return StringUtils.defaultIfBlank(StringUtils.trim(course.getName()), null);
+        }
+        catch (Exception ignored)
+        {
+            return null;
+        }
     }
 
     private String defaultText(JsonNode node, String defaultValue)

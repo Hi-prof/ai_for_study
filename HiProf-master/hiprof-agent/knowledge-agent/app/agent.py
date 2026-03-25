@@ -180,6 +180,7 @@ class KnowledgeGraphAgent:
             request.courseName,
             request.teacherRequirements,
             source_summary,
+            request.graphType,
         )
         self._update(
             task,
@@ -198,7 +199,12 @@ class KnowledgeGraphAgent:
             "Skeleton raw result received",
             progress=self._progress_payload(3, 4, "整理骨架节点关系"),
         )
-        result = self._normalize_skeleton_payload(payload, request.courseName)
+        result = self._normalize_skeleton_payload(
+            payload,
+            request.courseName,
+            source_summary,
+            request.graphType,
+        )
         self._update(
             task,
             TaskStatus.running,
@@ -209,7 +215,11 @@ class KnowledgeGraphAgent:
         return result
 
     def _normalize_skeleton_payload(
-        self, payload: dict, fallback_title: str
+        self,
+        payload: dict,
+        fallback_title: str,
+        source_summary: str,
+        graph_type: str = "0",
     ) -> tuple[list[GraphNode], str]:
         raw_nodes = payload.get("nodes") or []
         nodes: list[GraphNode] = []
@@ -219,17 +229,167 @@ class KnowledgeGraphAgent:
             if node_id in seen:
                 node_id = f"{node_id}_{index}"
             seen.add(node_id)
+            parent_id = item.get("parentId")
             nodes.append(
                 GraphNode(
                     id=node_id,
                     title=str(item.get("title") or f"Topic {index}"),
-                    parentId=item.get("parentId"),
-                    level=int(item.get("level") or (2 if item.get("parentId") else 1)),
+                    parentId=(
+                        str(parent_id)
+                        if parent_id not in (None, "", 0, "0")
+                        else None
+                    ),
+                    level=int(item.get("level") or (2 if parent_id else 1)),
                 )
             )
         if not nodes:
             raise RuntimeError("Remote LLM returned no graph nodes")
-        return nodes, str(payload.get("graphTitle") or fallback_title)
+        if graph_type == "1":
+            normalized_nodes = self._normalize_levels(nodes)
+            return normalized_nodes, str(payload.get("graphTitle") or fallback_title)
+
+        normalized_nodes = self._ensure_summary_parent(
+            nodes,
+            fallback_title,
+            str(payload.get("summaryTitle") or ""),
+            source_summary,
+        )
+        return normalized_nodes, str(payload.get("graphTitle") or fallback_title)
+
+    def _ensure_summary_parent(
+        self,
+        nodes: list[GraphNode],
+        course_name: str,
+        summary_title: str,
+        source_summary: str,
+    ) -> list[GraphNode]:
+        normalized_nodes = self._unwrap_explicit_course_root(nodes, course_name)
+        normalized_nodes = self._normalize_levels(normalized_nodes)
+
+        root_nodes = [node for node in normalized_nodes if node.parentId is None]
+        if len(root_nodes) != 1:
+            summary_node = GraphNode(
+                id=self._next_node_id(normalized_nodes, "summary"),
+                title=self._resolve_summary_title(
+                    summary_title,
+                    root_nodes,
+                    course_name,
+                    source_summary,
+                ),
+                parentId=None,
+                level=1,
+            )
+            root_ids = {node.id for node in root_nodes}
+            for node in normalized_nodes:
+                if node.id in root_ids:
+                    node.parentId = summary_node.id
+            normalized_nodes.append(summary_node)
+
+        return self._normalize_levels(normalized_nodes)
+
+    def _unwrap_explicit_course_root(
+        self, nodes: list[GraphNode], course_name: str
+    ) -> list[GraphNode]:
+        if not course_name.strip():
+            return nodes
+
+        course_root_ids = {
+            node.id
+            for node in nodes
+            if node.parentId is None and self._titles_match(node.title, course_name)
+        }
+        if not course_root_ids:
+            return nodes
+
+        normalized_nodes = [node for node in nodes if node.id not in course_root_ids]
+        for node in normalized_nodes:
+            if node.parentId in course_root_ids:
+                node.parentId = None
+        return normalized_nodes
+
+    def _resolve_summary_title(
+        self,
+        summary_title: str,
+        root_nodes: list[GraphNode],
+        course_name: str,
+        source_summary: str,
+    ) -> str:
+        candidates = [summary_title]
+        if len(root_nodes) == 1:
+            candidates.append(root_nodes[0].title)
+
+        for candidate in candidates:
+            normalized = self._sanitize_summary_title(candidate, course_name)
+            if normalized:
+                return normalized
+
+        fallback = self._sanitize_summary_title(source_summary, course_name)
+        return fallback or "课程内容总结"
+
+    def _sanitize_summary_title(self, value: str, course_name: str) -> str:
+        cleaned = re.sub(r"\s+", " ", str(value or "")).strip(" ,，。；;：:")
+        if not cleaned:
+            return ""
+        if self._titles_match(cleaned, course_name):
+            return f"{course_name.strip()}内容总结"
+        if len(cleaned) <= 24:
+            return cleaned
+        sentence = re.split(r"[。！？；;]", cleaned, maxsplit=1)[0].strip()
+        if sentence and len(sentence) <= 24:
+            return sentence
+        return cleaned[:24].rstrip(" ,，。；;：:") + "..."
+
+    def _next_node_id(self, nodes: list[GraphNode], prefix: str) -> str:
+        existing_ids = {node.id for node in nodes}
+        if prefix not in existing_ids:
+            return prefix
+        index = 2
+        while f"{prefix}_{index}" in existing_ids:
+            index += 1
+        return f"{prefix}_{index}"
+
+    def _titles_match(self, left: str, right: str) -> bool:
+        return left.strip().lower() == right.strip().lower()
+
+    def _normalize_levels(self, nodes: list[GraphNode]) -> list[GraphNode]:
+        if not nodes:
+            return nodes
+
+        node_map = {node.id: node for node in nodes}
+        for node in nodes:
+            if node.parentId and node.parentId not in node_map:
+                node.parentId = None
+
+        roots = [node for node in nodes if node.parentId is None]
+        if not roots:
+            nodes[0].parentId = None
+            roots = [nodes[0]]
+
+        children_map: dict[str, list[GraphNode]] = {}
+        for node in nodes:
+            if node.parentId is None:
+                continue
+            children_map.setdefault(node.parentId, []).append(node)
+
+        visited: set[str] = set()
+        queue: list[tuple[GraphNode, int]] = [(root, 1) for root in roots]
+        while queue:
+            current, level = queue.pop(0)
+            if current.id in visited:
+                continue
+            visited.add(current.id)
+            current.level = level
+            for child in children_map.get(current.id, []):
+                queue.append((child, level + 1))
+
+        if len(visited) != len(nodes):
+            anchor_id = roots[0].id
+            for node in nodes:
+                if node.id not in visited and node.id != anchor_id:
+                    node.parentId = anchor_id
+            return self._normalize_levels(nodes)
+
+        return nodes
 
     def _generate_light_cards(
         self,
