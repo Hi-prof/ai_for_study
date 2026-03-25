@@ -99,6 +99,26 @@ export const isChapterFile = (fileName) => {
   return parseChapterFileName(fileName) !== null;
 };
 
+const buildCompatibleNodeNames = (nodeName) => {
+  if (!nodeName || typeof nodeName !== 'string') {
+    return [];
+  }
+
+  const trimmedName = nodeName.trim();
+  if (!trimmedName) {
+    return [];
+  }
+
+  const compatibleNames = new Set([trimmedName]);
+
+  if (trimmedName === '节点文件' || trimmedName === '章节文件') {
+    compatibleNames.add('节点文件');
+    compatibleNames.add('章节文件');
+  }
+
+  return [...compatibleNames];
+};
+
 /**
  * 根据章节信息筛选文件列表（增强版：支持ID和名称双重匹配，向后兼容旧格式）
  * @param {Array} fileList 文件列表
@@ -206,6 +226,7 @@ export const filterFilesByNode = (fileList, nodeName, nodeId) => {
   }
 
   console.log(`筛选文件: nodeName=${nodeName}, nodeId=${nodeId}`);
+  const compatibleNodeNames = buildCompatibleNodeNames(nodeName);
 
   // 先尝试通过节点ID匹配（新格式和旧格式都支持）
   const idMatches = fileList.filter(file => {
@@ -255,7 +276,11 @@ export const filterFilesByNode = (fileList, nodeName, nodeId) => {
       return false;
     }
 
-    const isMatch = parsed.nodeName === nodeName;
+    if (parsed.nodeId === null) {
+      return false;
+    }
+
+    const isMatch = compatibleNodeNames.includes(parsed.nodeName);
     if (isMatch) {
       console.log(`名称匹配成功: 文件=${file.fileName}, 解析出的nodeName=${parsed.nodeName}`);
     }

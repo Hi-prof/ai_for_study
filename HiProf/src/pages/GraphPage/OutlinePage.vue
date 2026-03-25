@@ -187,6 +187,43 @@ const childNodeInfo = ref(null);
 const isNewNode = ref(false);
 const parentNodeId = ref(null);
 
+const normalizeTextValue = (value) => {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return String(value);
+  }
+
+  return '';
+};
+
+const normalizeOutlineNode = (node = {}) => {
+  const normalizedName = normalizeTextValue(node?.name) ||
+    normalizeTextValue(node?.nodeName) ||
+    normalizeTextValue(node?.title);
+
+  return {
+    ...node,
+    id: node?.id ?? node?.nodeId ?? null,
+    parentId: node?.parentId ?? node?.parent_id ?? node?.parentNodeId ?? null,
+    graphId: node?.graphId ?? node?.graph_id ?? null,
+    name: normalizedName,
+    nodeName: normalizeTextValue(node?.nodeName) || normalizedName,
+    title: normalizeTextValue(node?.title) || normalizedName,
+    content: normalizeTextValue(node?.content)
+  };
+};
+
+const normalizeOutlineNodes = (nodes) => {
+  if (!Array.isArray(nodes)) {
+    return [];
+  }
+
+  return nodes.map(node => normalizeOutlineNode(node));
+};
+
 // 构建节点的层级结构
 const buildHierarchy = () => {
   if (!graphNodes.value || graphNodes.value.length === 0) {
@@ -328,7 +365,7 @@ const refreshNodeData = async () => {
       nodes = response;
     }
 
-    graphNodes.value = nodes;
+    graphNodes.value = normalizeOutlineNodes(nodes);
 
     // 默认展开所有一级节点
     const rootNodes = graphNodes.value.filter(node => !node.parentId);
@@ -400,7 +437,7 @@ const fetchGraphNodes = async (forceCourseId = null) => {
       nodes = response;
     }
 
-    graphNodes.value = nodes;
+    graphNodes.value = normalizeOutlineNodes(nodes);
 
     // 默认展开所有一级节点
     const rootNodes = graphNodes.value.filter(node => !node.parentId);
@@ -433,7 +470,7 @@ const handleOutlineSelect = (course) => {
 
 // 编辑节点
 const editNode = (node) => {
-  editingNode.value = { ...node };
+  editingNode.value = normalizeOutlineNode(node);
   isNewNode.value = false;
   showEditDialog.value = true;
 };
@@ -676,10 +713,12 @@ const confirmDelete = async () => {
 
 // 搜索节点
 const searchNodes = (query) => {
-  searchQuery.value = query;
+  const normalizedQuery = normalizeTextValue(query).trim().toLowerCase();
+
+  searchQuery.value = normalizeTextValue(query);
 
   // 如果搜索框为空，重置过滤
-  if (!query) {
+  if (!normalizedQuery) {
     filteredNodes.value = [];
     buildHierarchy();
     return;
@@ -687,8 +726,10 @@ const searchNodes = (query) => {
 
   // 根据名称或内容搜索节点
   filteredNodes.value = graphNodes.value.filter(node => {
-    return node.name?.toLowerCase().includes(query.toLowerCase()) ||
-           node.content?.toLowerCase().includes(query.toLowerCase());
+    const normalizedNode = normalizeOutlineNode(node);
+
+    return normalizedNode.name.toLowerCase().includes(normalizedQuery) ||
+           normalizedNode.content.toLowerCase().includes(normalizedQuery);
   });
 
   // 展开包含搜索结果的所有父节点

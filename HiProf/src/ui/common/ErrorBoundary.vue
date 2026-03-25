@@ -72,6 +72,21 @@ export default {
     const errorMessage = ref('')
     const errorDetails = ref('')
 
+    const isExternalScriptError = (error, event = null) => {
+      const source = String(event?.filename || error?.fileName || '')
+      const details = String(error?.stack || error?.message || event?.message || '')
+      const externalMarkers = [
+        'chrome-extension://',
+        'moz-extension://',
+        'safari-web-extension://',
+        'inject-script',
+        'content-app.',
+        'custom.'
+      ]
+
+      return externalMarkers.some(marker => source.includes(marker) || details.includes(marker))
+    }
+
     const handleError = (error, instance, info) => {
       hasError.value = true
       
@@ -137,11 +152,27 @@ export default {
     // 监听全局未捕获的错误
     if (typeof window !== 'undefined') {
       window.addEventListener('error', (event) => {
-        handleError(event.error, null, 'Global error')
+        const error = event.error || new Error(event.message || 'Global error')
+
+        if (isExternalScriptError(error, event)) {
+          console.warn('Ignored external script error:', event.message || error.message)
+          return
+        }
+
+        handleError(error, null, 'Global error')
       })
 
       window.addEventListener('unhandledrejection', (event) => {
-        handleError(event.reason, null, 'Unhandled promise rejection')
+        const reason = event.reason instanceof Error
+          ? event.reason
+          : new Error(String(event.reason || 'Unhandled promise rejection'))
+
+        if (isExternalScriptError(reason)) {
+          console.warn('Ignored external promise rejection:', reason.message)
+          return
+        }
+
+        handleError(reason, null, 'Unhandled promise rejection')
       })
     }
 

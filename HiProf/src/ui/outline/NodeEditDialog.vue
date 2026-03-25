@@ -236,23 +236,44 @@ const localNode = ref({
 // 文件输入引用
 const fileInput = ref(null);
 
+const normalizeTextValue = (value) => {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return String(value);
+  }
+
+  return '';
+};
+
+const nodeFileLookupName = computed(() => {
+  return normalizeTextValue(props.editingNode?.name) ||
+    normalizeTextValue(props.editingNode?.nodeName) ||
+    normalizeTextValue(props.editingNode?.title) ||
+    '节点文件';
+});
+
 // 计算属性 - 当前节点的文件列表
 const nodeFiles = computed(() => {
   if (!props.editingNode?.id || !props.courseId) {
     return [];
   }
-  return getNodeFiles('节点文件', props.editingNode.id);
+  return getNodeFiles(nodeFileLookupName.value, props.editingNode.id);
 });
 
 // 监听editingNode变化，同步到本地数据
 watch(() => props.editingNode, (newNode) => {
   if (newNode) {
     localNode.value = {
-      name: newNode.name || '',
-      content: newNode.content || '',
-      id: newNode.id || null,
-      parentId: newNode.parentId || null,
-      graphId: newNode.graphId || null
+      name: normalizeTextValue(newNode.name) ||
+        normalizeTextValue(newNode.nodeName) ||
+        normalizeTextValue(newNode.title),
+      content: normalizeTextValue(newNode.content),
+      id: newNode.id ?? newNode.nodeId ?? null,
+      parentId: newNode.parentId ?? newNode.parent_id ?? null,
+      graphId: newNode.graphId ?? newNode.graph_id ?? null
     };
   }
 }, { immediate: true, deep: true });
