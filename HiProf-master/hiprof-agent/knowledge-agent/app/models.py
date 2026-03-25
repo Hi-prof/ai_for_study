@@ -46,6 +46,12 @@ class DeepCard(BaseModel):
     references: list[str] = Field(default_factory=list)
 
 
+class ManualDeepCardRequest(BaseModel):
+    courseName: str = Field(min_length=1)
+    sourceText: str = ""
+    node: dict[str, Any] = Field(default_factory=dict)
+
+
 class GraphNode(BaseModel):
     id: str
     title: str
@@ -84,6 +90,7 @@ class TaskRecord(BaseModel):
     status: TaskStatus = TaskStatus.pending
     stage: TaskStage = TaskStage.submitted
     message: str = "Task created"
+    progress: dict[str, Any] = Field(default_factory=dict)
     createdAt: str = Field(default_factory=utc_now)
     updatedAt: str = Field(default_factory=utc_now)
     request: GenerationRequest
@@ -95,3 +102,8 @@ class CreateTaskResponse(BaseModel):
     taskId: str
     status: TaskStatus
     stage: TaskStage
+
+
+class DeepCardResponse(BaseModel):
+    node: dict[str, Any]
+    deepCard: DeepCard

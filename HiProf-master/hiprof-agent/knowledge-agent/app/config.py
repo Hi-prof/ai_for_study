@@ -4,12 +4,24 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+
 
 @dataclass(frozen=True)
 class Settings:
     api_key: str = os.getenv("KNOWLEDGE_AGENT_API_KEY", "")
     api_base: str = os.getenv("KNOWLEDGE_AGENT_API_BASE", "https://api.openai.com/v1")
-    model: str = os.getenv("KNOWLEDGE_AGENT_MODEL", "gpt-4o-mini")
+    skeleton_model: str = os.getenv(
+        "KNOWLEDGE_AGENT_SKELETON_MODEL",
+        os.getenv("KNOWLEDGE_AGENT_MODEL", "gpt-4o-mini"),
+    )
+    card_model: str = os.getenv(
+        "KNOWLEDGE_AGENT_CARD_MODEL",
+        os.getenv("KNOWLEDGE_AGENT_MODEL", "gpt-4o-mini"),
+    )
     timeout_seconds: int = int(os.getenv("KNOWLEDGE_AGENT_TIMEOUT_SECONDS", "120"))
     storage_dir: Path = Path(
         os.getenv(

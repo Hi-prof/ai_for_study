@@ -12,12 +12,14 @@ class LlmClient:
     def __init__(self) -> None:
         self.enabled = bool(settings.api_key)
 
-    def complete_json(self, system_prompt: str, user_prompt: str) -> dict:
+    def complete_json(
+        self, system_prompt: str, user_prompt: str, model: str | None = None
+    ) -> dict:
         if not self.enabled:
             raise RuntimeError("Remote LLM is not configured")
 
         payload = {
-            "model": settings.model,
+            "model": model or settings.card_model,
             "temperature": 0.3,
             "response_format": {"type": "json_object"},
             "messages": [

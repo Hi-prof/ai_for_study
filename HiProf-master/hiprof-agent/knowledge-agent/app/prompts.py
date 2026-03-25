@@ -100,3 +100,32 @@ def build_deep_card_prompt(
         ensure_ascii=True,
     )
     return system_prompt, user_prompt
+
+
+def build_single_deep_card_prompt(
+    course_name: str, source_summary: str, node: dict
+) -> tuple[str, str]:
+    system_prompt = (
+        "You generate one deep learning card for a teacher-selected curriculum node. "
+        "Return valid JSON only. Be specific, accurate, and useful for teaching."
+    )
+    user_prompt = json.dumps(
+        {
+            "task": "Generate a deep card for one selected node",
+            "courseName": course_name,
+            "sourceSummary": source_summary,
+            "node": node,
+            "outputSchema": {
+                "deepCard": {
+                    "detailedDefinition": "string",
+                    "coreFeatures": ["string"],
+                    "applicationScenarios": ["string"],
+                    "commonQuestions": ["string"],
+                    "relatedExplanation": "string",
+                    "references": ["string"],
+                }
+            },
+        },
+        ensure_ascii=True,
+    )
+    return system_prompt, user_prompt
