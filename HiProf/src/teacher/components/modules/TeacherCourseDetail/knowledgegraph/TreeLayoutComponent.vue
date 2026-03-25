@@ -15,11 +15,13 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import RelationGraph, { RGJsonData, RGOptions, RGNode, RGLine, RGLink, RGUserEvent, RelationGraphComponent } from 'relation-graph-vue3';
 import { getKnowledgeGraphNodes, getNodeLines } from '@/api/node';
+import { VIRTUAL_ROOT_NODE_ID, isVirtualRootNode, resolveTopLevelNodeIds } from './graphRootUtils';
 
 // 定义 props
 interface Props {
   courseId?: string | number;
   graphId?: string | number;
+  courseName?: string;
   settings?: {
     nodeStyle?: string;
     linkStyle?: string;
@@ -34,6 +36,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  courseName: '课程知识图谱',
   settings: () => ({
     nodeStyle: 'rectangle',
     linkStyle: 'straight',
@@ -46,6 +49,47 @@ const props = withDefaults(defineProps<Props>(), {
     enableAnimation: true
   })
 });
+
+const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedNodes: Array<Record<string, unknown>>, processedLines: Array<Record<string, unknown>>) => {
+  const rootIds = resolveTopLevelNodeIds(rawNodes);
+  const stableRootIds = rootIds.length > 0
+    ? rootIds
+    : (processedNodes[0]?.id ? [String(processedNodes[0].id)] : []);
+
+  if (stableRootIds.length <= 1) {
+    return {
+      rootId: stableRootIds[0] || '',
+      nodes: processedNodes,
+      links: processedLines
+    };
+  }
+
+  const virtualRootNode = {
+    id: VIRTUAL_ROOT_NODE_ID,
+    text: props.courseName || '课程知识图谱',
+    borderColor: '#f59e0b',
+    fontColor: '#000000',
+    color: 'rgba(245, 158, 11, 0.16)',
+    data: {
+      content: '',
+      category: 'virtual-root',
+      isVirtualRoot: true
+    }
+  };
+
+  const virtualLinks = stableRootIds.map((rootId, index) => ({
+    from: VIRTUAL_ROOT_NODE_ID,
+    to: rootId,
+    text: '',
+    id: `virtual_root_${index}`
+  }));
+
+  return {
+    rootId: VIRTUAL_ROOT_NODE_ID,
+    nodes: [virtualRootNode, ...processedNodes],
+    links: [...virtualLinks, ...processedLines]
+  };
+};
 
 // 定义 emits
 const emit = defineEmits<{
@@ -258,11 +302,7 @@ const loadRealGraphData = async () => {
     })).filter(line => line.from && line.to);
 
     // 5. 构建图谱数据
-    const graphData = {
-      rootId: nodes.length > 0 ? nodes[0].id.toString() : '',
-      nodes: processedNodes,
-      links: processedLines
-    };
+    const graphData = buildGraphData(nodes, processedNodes, processedLines);
 
     console.log('TreeLayoutComponent: 真实数据构建完成:', graphData);
 
@@ -332,7 +372,7 @@ const calculateMaxDepth = (graphData: any): number => {
   });
 
   // 从根节点开始BFS计算最大深度
-  const rootId = graphData.rootId || (graphData.nodes[0]?.id);
+  const rootId = graphData.rootId;
   if (!rootId) return 1;
 
   let maxDepth = 1;
@@ -394,6 +434,9 @@ const switchTreeLayout = async (newLayoutType?: 'horizontal' | 'vertical') => {
 
 // 处理节点点击
 const onNodeClick = (nodeObject: RGNode, $event: RGUserEvent) => {
+  if (isVirtualRootNode(nodeObject)) {
+    return;
+  }
   console.log('TreeLayoutComponent: 节点点击:', nodeObject);
   emit('nodeClick', nodeObject, $event);
 };
@@ -411,6 +454,10 @@ watch(() => props.settings.treeDirection, (newDirection) => {
     currentTreeType.value = newDirection;
     switchTreeLayout();
   }
+}, { immediate: false });
+
+watch(() => [props.courseId, props.graphId, props.courseName], () => {
+  loadRealGraphData();
 }, { immediate: false });
 
 // 组件挂载后加载数据

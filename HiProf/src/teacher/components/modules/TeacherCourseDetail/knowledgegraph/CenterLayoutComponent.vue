@@ -15,12 +15,14 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import RelationGraph, { RelationGraphComponent } from 'relation-graph-vue3';
 import { getKnowledgeGraphNodes, getNodeLines } from '@/api/node';
+import { VIRTUAL_ROOT_NODE_ID, isVirtualRootNode, resolveTopLevelNodeIds } from './graphRootUtils';
 import '@/assets/styles/layouts/layout-manager.css';
 
 // 定义props
 interface Props {
   courseId: string | number;
   graphId: string | number;
+  courseName?: string;
   settings: {
     nodeStyle?: string;
     linkStyle?: string;
@@ -34,6 +36,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  courseName: '课程知识图谱',
   settings: () => ({
     nodeStyle: 'circle',
     linkStyle: 'curve',
@@ -45,6 +48,47 @@ const props = withDefaults(defineProps<Props>(), {
     enableAnimation: true
   })
 });
+
+const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedNodes: Array<Record<string, unknown>>, processedLines: Array<Record<string, unknown>>) => {
+  const rootIds = resolveTopLevelNodeIds(rawNodes);
+  const stableRootIds = rootIds.length > 0
+    ? rootIds
+    : (processedNodes[0]?.id ? [String(processedNodes[0].id)] : []);
+
+  if (stableRootIds.length <= 1) {
+    return {
+      rootId: stableRootIds[0] || '',
+      nodes: processedNodes,
+      lines: processedLines
+    };
+  }
+
+  const virtualRootNode = {
+    id: VIRTUAL_ROOT_NODE_ID,
+    text: props.courseName || '课程知识图谱',
+    borderColor: '#f59e0b',
+    fontColor: '#000000',
+    color: 'rgba(245, 158, 11, 0.16)',
+    data: {
+      content: '',
+      category: 'virtual-root',
+      isVirtualRoot: true
+    }
+  };
+
+  const virtualLines = stableRootIds.map((rootId, index) => ({
+    from: VIRTUAL_ROOT_NODE_ID,
+    to: rootId,
+    text: '',
+    id: `virtual_root_${index}`
+  }));
+
+  return {
+    rootId: VIRTUAL_ROOT_NODE_ID,
+    nodes: [virtualRootNode, ...processedNodes],
+    lines: [...virtualLines, ...processedLines]
+  };
+};
 
 // 定义emits
 const emit = defineEmits(['node-click', 'line-click']);
@@ -156,6 +200,9 @@ const currentCenterOptions = computed(() => {
 
 // 节点点击处理
 const onNodeClick = (nodeObject: any, nodeElement: any) => {
+  if (isVirtualRootNode(nodeObject)) {
+    return;
+  }
   console.log('CenterLayoutComponent: 节点点击', nodeObject);
   emit('node-click', nodeObject, nodeElement);
 };
@@ -222,11 +269,7 @@ const loadGraphData = async () => {
     })).filter((line: any) => line.from && line.to);
 
     // 5. 构建图谱数据
-    const graphData = {
-      rootId: processedNodes[0]?.id || '',
-      nodes: processedNodes,
-      lines: processedLines
-    };
+    const graphData = buildGraphData(nodes, processedNodes, processedLines);
 
     console.log(`CenterLayoutComponent: 图谱数据构建完成`, {
       nodeCount: processedNodes.length,
@@ -259,7 +302,7 @@ const loadGraphData = async () => {
 };
 
 // 监听props变化
-watch(() => [props.courseId, props.graphId], () => {
+watch(() => [props.courseId, props.graphId, props.courseName], () => {
   loadGraphData();
 }, { immediate: false });
 
