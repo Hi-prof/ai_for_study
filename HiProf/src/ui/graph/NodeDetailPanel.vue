@@ -1,7 +1,10 @@
 <template>
   <div class="node-detail-panel">
     <div class="panel-header">
-      <input type="text" v-model="title" class="title-editor" placeholder="知识点标题" />
+      <div class="title-input-shell">
+        <input type="text" v-model="title" class="title-editor" placeholder="知识点标题" />
+        <span v-if="isStructuredContent && structuredNode?.isFocus" class="focus-badge title-focus-badge">重点</span>
+      </div>
       <div class="panel-actions">
         <button
           v-if="isStructuredContent"
@@ -19,7 +22,6 @@
         <div class="knowledge-card-toolbar">
           <div class="knowledge-card-meta">
             <span class="save-status compact" :class="saveStatusClass">{{ saveStatusText }}</span>
-            <span v-if="structuredNode.isFocus" class="focus-badge">重点节点</span>
           </div>
         </div>
         <div v-if="structuredCardFields.length > 0" class="knowledge-card-frame">
@@ -826,6 +828,18 @@ onBeforeUnmount(() => {
   color: #dc2626;
 }
 
+.title-input-shell {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.title-editor {
+  width: 100%;
+  margin-right: 0 !important;
+  padding-right: 84px !important;
+}
+
 .knowledge-card-toolbar {
   display: flex;
   justify-content: flex-end;
@@ -851,6 +865,21 @@ onBeforeUnmount(() => {
   color: #1d4ed8;
   font-size: 12px;
   font-weight: 600;
+}
+
+.title-focus-badge {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  padding: 3px 8px;
+  background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid rgba(147, 197, 253, 0.9);
+  color: #1e40af;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.12);
+  pointer-events: none;
 }
 
 .card-block + .card-block {
@@ -887,7 +916,7 @@ onBeforeUnmount(() => {
 
 .card-field {
   padding: 14px 16px;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .card-field + .card-field {
@@ -896,6 +925,7 @@ onBeforeUnmount(() => {
 
 .card-field:focus-within {
   background: #f8fbff;
+  box-shadow: inset 3px 0 0 #93c5fd;
 }
 
 .card-item-label {
@@ -907,20 +937,30 @@ onBeforeUnmount(() => {
 }
 
 .card-label-input {
-  width: 100%;
-  margin-bottom: 8px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: #334155;
-  font-size: 14px;
+  display: inline-flex;
+  width: fit-content;
+  min-width: 96px;
+  max-width: 100%;
+  margin-bottom: 10px;
+  padding: 6px 14px;
+  border: 1px solid #d6e4ff;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 100%);
+  color: #31507a;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1.4;
+  letter-spacing: 0.02em;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, color 0.2s ease;
 }
 
 .card-label-input:focus {
   outline: none;
   color: #1d4ed8;
+  border-color: #93c5fd;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.22);
 }
 
 .card-field-input {
