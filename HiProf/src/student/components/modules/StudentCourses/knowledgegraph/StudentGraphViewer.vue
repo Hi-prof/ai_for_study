@@ -65,7 +65,7 @@
               <div class="node-name">{{ node.name || '未命名节点' }}</div>
             </div>
             <div v-if="node.content" class="node-content">
-              {{ truncateText(node.content, 100) }}
+              {{ truncateText(getNodePreviewText(node), 100) }}
             </div>
             <div class="node-footer">
               <span class="node-date">{{ formatDate(node.createTime) }}</span>
@@ -89,19 +89,11 @@
         <div class="detail-content">
           <div v-if="selectedNodeStructured" class="content-section card-section">
             <div class="section-header-line">
-              <h4 class="section-title">智能体知识卡片</h4>
+              <h4 class="section-title">知识卡片</h4>
               <span v-if="selectedNodeStructured.isFocus" class="focus-badge">重点节点</span>
             </div>
-            <div v-if="selectedNodeLightItems.length > 0" class="card-block">
-              <h5 class="card-title">轻卡片</h5>
-              <div v-for="item in selectedNodeLightItems" :key="item.label" class="card-item">
-                <div class="card-label">{{ item.label }}</div>
-                <div class="card-value">{{ item.value }}</div>
-              </div>
-            </div>
-            <div v-if="selectedNodeDeepItems.length > 0" class="card-block deep-card-block">
-              <h5 class="card-title">深卡片</h5>
-              <div v-for="item in selectedNodeDeepItems" :key="item.label" class="card-item">
+            <div v-if="selectedNodeCardItems.length > 0" class="card-block">
+              <div v-for="item in selectedNodeCardItems" :key="item.label" class="card-item">
                 <div class="card-label">{{ item.label }}</div>
                 <div class="card-value">{{ item.value }}</div>
               </div>
@@ -133,7 +125,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { getKnowledgeGraphNodes } from '@/api/node';
-import { buildKnowledgeCardItems, joinKnowledgeList, parseStructuredKnowledgeContent } from './knowledgeCardUtils';
+import { buildKnowledgeCardPreviewText, buildUnifiedKnowledgeCardItems, parseStructuredKnowledgeContent } from './knowledgeCardUtils';
 
 // 定义 props
 const props = defineProps({
@@ -159,20 +151,7 @@ const iframeKey = ref(0);
 const nodeCount = computed(() => nodes.value.length);
 const linkCount = computed(() => Math.floor(nodeCount.value * 0.6)); // 简化计算
 const selectedNodeStructured = computed(() => parseStructuredKnowledgeContent(selectedNode.value?.content));
-const selectedNodeLightItems = computed(() => buildKnowledgeCardItems(selectedNodeStructured.value?.lightweightCard, [
-  ['定义', card => card.definition],
-  ['关键词', card => joinKnowledgeList(card.keywords)],
-  ['示例', card => card.example],
-  ['关联知识', card => joinKnowledgeList(card.relatedKnowledge)]
-]));
-const selectedNodeDeepItems = computed(() => buildKnowledgeCardItems(selectedNodeStructured.value?.deepCard, [
-  ['详细定义', card => card.detailedDefinition],
-  ['核心特征', card => joinKnowledgeList(card.coreFeatures)],
-  ['应用场景', card => joinKnowledgeList(card.applicationScenarios)],
-  ['常见问题', card => joinKnowledgeList(card.commonQuestions)],
-  ['关联说明', card => card.relatedExplanation],
-  ['参考内容', card => joinKnowledgeList(card.references)]
-]));
+const selectedNodeCardItems = computed(() => buildUnifiedKnowledgeCardItems(selectedNodeStructured.value));
 
 // 格式化日期
 const formatDate = (dateString) => {
@@ -189,6 +168,10 @@ const formatDate = (dateString) => {
 const truncateText = (text, maxLength) => {
   if (!text) return '';
   return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+};
+
+const getNodePreviewText = (node) => {
+  return buildKnowledgeCardPreviewText(node?.content);
 };
 
 // 获取图谱URL
@@ -567,13 +550,6 @@ onMounted(() => {
   margin-top: 16px;
 }
 
-.card-title {
-  margin: 0 0 12px;
-  color: #0f172a;
-  font-size: 14px;
-  font-weight: 700;
-}
-
 .card-item + .card-item {
   margin-top: 10px;
 }
@@ -589,11 +565,6 @@ onMounted(() => {
   color: #1e293b;
   line-height: 1.7;
   white-space: pre-wrap;
-}
-
-.deep-card-block {
-  padding-top: 12px;
-  border-top: 1px solid #dbeafe;
 }
 
 .section-title {

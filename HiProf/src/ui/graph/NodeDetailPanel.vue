@@ -9,36 +9,32 @@
     </div>
     <div class="panel-content">
       <div v-if="isStructuredContent" class="agent-card-section">
-        <div class="content-header">
-          <h4>智能体知识卡片</h4>
-          <span v-if="structuredNode.isFocus" class="focus-badge">重点节点</span>
-        </div>
-        <div v-if="lightCardItems.length > 0" class="card-block">
-          <div class="card-block-title-row">
-            <div class="card-block-title">轻卡片</div>
+        <div class="content-header knowledge-card-header">
+          <div class="card-title-group">
+            <h4>知识卡片</h4>
+            <p class="card-helper-text">一个节点只保留一张卡片，AI 优化会直接补充到当前卡片里。</p>
+          </div>
+          <div class="header-right">
+            <span v-if="structuredNode.isFocus" class="focus-badge">重点节点</span>
             <button
               class="generate-deep-card-button"
-              @click="generateDeepCard"
-              :disabled="isGeneratingDeepCard"
+              @click="optimizeKnowledgeCard"
+              :disabled="isOptimizingCard"
             >
-              {{ isGeneratingDeepCard ? '生成中...' : '生成深卡片' }}
+              {{ isOptimizingCard ? '优化中...' : hasOptimizedCard ? '重新AI优化' : 'AI优化卡片' }}
             </button>
           </div>
-          <div v-for="item in lightCardItems" :key="item.label" class="card-item">
+        </div>
+        <div v-if="knowledgeCardItems.length > 0" class="card-block unified-card-block">
+          <div v-for="item in knowledgeCardItems" :key="item.label" class="card-item">
             <div class="card-item-label">{{ item.label }}</div>
             <div class="card-item-value">{{ item.value }}</div>
           </div>
         </div>
-        <div v-if="deepCardItems.length > 0" class="card-block deep-block">
-          <div class="card-block-title">深卡片</div>
-          <div v-for="item in deepCardItems" :key="item.label" class="card-item">
-            <div class="card-item-label">{{ item.label }}</div>
-            <div class="card-item-value">{{ item.value }}</div>
-          </div>
-        </div>
+        <div v-else class="empty-card-state">当前节点暂无可展示的知识卡片内容。</div>
       </div>
 
-      <div class="node-content">
+      <div v-else class="node-content">
         <div class="content-header">
           <h4>知识卡片</h4>
           <div class="header-right">
@@ -180,7 +176,7 @@ const imageResult = ref<string | null>(null);
 const resources = ref<any[]>([]);
 const contentLength = ref(0);
 const fileInput = ref<HTMLInputElement | null>(null);
-const isGeneratingDeepCard = ref(false);
+const isOptimizingCard = ref(false);
 
 // 计算属性 - 当前节点的文件列表
 const nodeFiles = computed(() => {
@@ -221,33 +217,29 @@ const buildDisplayItems = (items: Array<[string, string]>) => {
     .map(([label, value]) => ({ label, value }));
 };
 
-const lightCardItems = computed(() => {
-  const lightCard = structuredNode.value?.lightweightCard;
-  if (!lightCard) {
+const knowledgeCardItems = computed(() => {
+  const lightCard = structuredNode.value?.lightweightCard || null;
+  const deepCard = structuredNode.value?.deepCard || null;
+
+  if (!lightCard && !deepCard) {
     return [];
   }
+
   return buildDisplayItems([
-    ['定义', lightCard.definition || ''],
-    ['关键词', joinList(lightCard.keywords)],
-    ['示例', lightCard.example || ''],
-    ['关联知识', joinList(lightCard.relatedKnowledge)]
+    ['定义', lightCard?.definition || ''],
+    ['关键词', joinList(lightCard?.keywords)],
+    ['示例', lightCard?.example || ''],
+    ['关联知识', joinList(lightCard?.relatedKnowledge)],
+    ['深入解析', deepCard?.detailedDefinition || ''],
+    ['核心特征', joinList(deepCard?.coreFeatures)],
+    ['应用场景', joinList(deepCard?.applicationScenarios)],
+    ['常见问题', joinList(deepCard?.commonQuestions)],
+    ['关联说明', deepCard?.relatedExplanation || ''],
+    ['参考内容', joinList(deepCard?.references)]
   ]);
 });
 
-const deepCardItems = computed(() => {
-  const deepCard = structuredNode.value?.deepCard;
-  if (!deepCard) {
-    return [];
-  }
-  return buildDisplayItems([
-    ['详细定义', deepCard.detailedDefinition || ''],
-    ['核心特征', joinList(deepCard.coreFeatures)],
-    ['应用场景', joinList(deepCard.applicationScenarios)],
-    ['常见问题', joinList(deepCard.commonQuestions)],
-    ['关联说明', deepCard.relatedExplanation || ''],
-    ['参考内容', joinList(deepCard.references)]
-  ]);
-});
+const hasOptimizedCard = computed(() => !!structuredNode.value?.deepCard);
 
 // Watch for changes in the node prop
 watch(() => props.node, (newNode) => {
@@ -294,7 +286,7 @@ const saveChanges = () => {
   emit('save', saveData);
 };
 
-const buildDeepCardSourceText = () => {
+const buildOptimizationSourceText = () => {
   const structured = structuredNode.value;
   if (!structured) {
     return title.value || '';
@@ -315,17 +307,17 @@ const buildDeepCardSourceText = () => {
   return parts.filter(Boolean).join('\n');
 };
 
-const generateDeepCard = async () => {
+const optimizeKnowledgeCard = async () => {
   if (!structuredNode.value?.lightweightCard) {
-    alert('当前节点没有轻卡片，无法生成深卡片');
+    alert('当前节点没有基础知识卡片，暂时无法进行 AI 优化');
     return;
   }
 
-  isGeneratingDeepCard.value = true;
+  isOptimizingCard.value = true;
   try {
     const payload = {
       courseName: props.courseName || '课程知识图谱',
-      sourceText: buildDeepCardSourceText(),
+      sourceText: buildOptimizationSourceText(),
       node: {
         id: props.node.id,
         title: title.value || structuredNode.value.title || props.node.text || props.node.name || '',
@@ -347,9 +339,9 @@ const generateDeepCard = async () => {
     rawContent.value = JSON.stringify(updatedNode);
     content.value = '';
   } catch (error: any) {
-    alert(error?.message || '生成深卡片失败');
+    alert(error?.message || 'AI 优化卡片失败');
   } finally {
-    isGeneratingDeepCard.value = false;
+    isOptimizingCard.value = false;
   }
 };
 
@@ -558,6 +550,22 @@ onMounted(() => {
   background: #f8fbff;
 }
 
+.knowledge-card-header {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.card-title-group {
+  min-width: 0;
+}
+
+.card-helper-text {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .focus-badge {
   display: inline-flex;
   align-items: center;
@@ -573,23 +581,8 @@ onMounted(() => {
   margin-top: 16px;
 }
 
-.card-block-title {
-  margin-bottom: 10px;
-  color: #0f172a;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.card-block-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.card-block-title-row .card-block-title {
-  margin-bottom: 0;
+.unified-card-block {
+  padding-top: 12px;
 }
 
 .generate-deep-card-button {
@@ -625,8 +618,11 @@ onMounted(() => {
   white-space: pre-wrap;
 }
 
-.deep-block {
-  padding-top: 12px;
-  border-top: 1px solid #dbeafe;
+.empty-card-state {
+  padding: 16px;
+  border: 1px dashed #bfdbfe;
+  border-radius: 10px;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.72);
 }
 </style> 
