@@ -1,81 +1,73 @@
 <template>
-  <main class="course-workspace">
-    <a class="course-workspace__skip" href="#teacher-course-panel">跳到课程内容</a>
-    <div class="course-workspace__glow course-workspace__glow--one"></div>
-    <div class="course-workspace__glow course-workspace__glow--two"></div>
+  <main class="teacher-course-workspace">
+    <header class="teacher-course-workspace__topbar">
+      <button
+        type="button"
+        class="teacher-course-workspace__brand"
+        @click="handleBackToCourses"
+      >
+        <span class="teacher-course-workspace__brand-mark">八</span>
+        <span class="teacher-course-workspace__brand-copy">
+          <strong>八闽慧教</strong>
+          <small>返回课程列表</small>
+        </span>
+      </button>
 
-    <section class="course-workspace__hero">
-      <div class="course-workspace__hero-top">
-        <button type="button" class="course-workspace__back-button" @click="handleBackToCourses">
-          <WorkspaceIcon name="arrowLeft" :size="18" />
-          <span>返回课程列表</span>
-        </button>
-
-        <div class="course-workspace__badge">
-          <WorkspaceIcon name="teacher" :size="16" />
-          <span>教师课程工作台</span>
-        </div>
-      </div>
-
-      <div class="course-workspace__hero-main">
-        <div class="course-workspace__hero-copy">
-          <p class="course-workspace__eyebrow">{{ activeTabMeta.label }}</p>
-          <h1>{{ courseInfo.title }}</h1>
-          <p v-if="courseDescription">{{ courseDescription }}</p>
-        </div>
-
-        <div class="course-workspace__summary">
-          <article v-for="item in courseSummary" :key="item.label" class="course-workspace__summary-card">
-            <span class="course-workspace__summary-icon">
-              <WorkspaceIcon :name="item.icon" :size="20" />
-            </span>
-            <div>
-              <span class="course-workspace__summary-label">{{ item.label }}</span>
-              <strong class="course-workspace__summary-value">{{ item.value }}</strong>
-            </div>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section class="course-workspace__body">
-      <aside class="course-workspace__nav" aria-label="课程工作台导航">
-        <button
-          v-for="tab in teacherCourseWorkspaceTabs"
-          :key="tab.key"
-          type="button"
-          class="course-workspace__nav-item"
-          :class="{ 'is-active': activeTab === tab.key }"
-          :aria-current="activeTab === tab.key ? 'page' : undefined"
-          @click="switchTab(tab.key)"
+      <div class="teacher-course-workspace__user">
+        <span
+          v-if="currentUser.avatar"
+          class="teacher-course-workspace__avatar teacher-course-workspace__avatar--image"
         >
-          <span class="course-workspace__nav-icon">
-            <WorkspaceIcon :name="tab.icon" :size="18" />
-          </span>
-          <span class="course-workspace__nav-copy">
-            <strong>{{ tab.label }}</strong>
-            <span :title="tab.description">{{ tab.description }}</span>
-          </span>
-          <span class="course-workspace__nav-state">
-            <span v-if="activeTab === tab.key">当前</span>
-            <WorkspaceIcon v-else name="arrowRight" :size="14" />
-          </span>
-        </button>
+          <img :src="currentUser.avatar" :alt="currentUserDisplayName" />
+        </span>
+        <span v-else class="teacher-course-workspace__avatar">
+          {{ currentUserInitial }}
+        </span>
+
+        <span class="teacher-course-workspace__user-copy">
+          <strong>{{ currentUserDisplayName }}</strong>
+          <small>教师端</small>
+        </span>
+      </div>
+    </header>
+
+    <div class="teacher-course-workspace__shell">
+      <aside class="teacher-course-workspace__sidebar" aria-label="课程工作台导航">
+        <div class="teacher-course-workspace__sidebar-header">
+          <h1>{{ courseInfo.title }}</h1>
+          <button
+            type="button"
+            class="teacher-course-workspace__backlink"
+            @click="handleBackToCourses"
+          >
+            返回课程列表
+          </button>
+        </div>
+
+        <nav class="teacher-course-workspace__nav">
+          <button
+            v-for="tab in menuTabs"
+            :key="tab.key"
+            type="button"
+            class="teacher-course-workspace__nav-item"
+            :class="{ 'is-active': activeTab === tab.key }"
+            :aria-current="activeTab === tab.key ? 'page' : undefined"
+            @click="switchTab(tab.key)"
+          >
+            <span class="teacher-course-workspace__nav-icon">
+              <WorkspaceIcon :name="tab.icon" :size="18" />
+            </span>
+            <span class="teacher-course-workspace__nav-label">{{ tab.label }}</span>
+          </button>
+        </nav>
       </aside>
 
-      <section id="teacher-course-panel" class="course-workspace__panel">
-        <header class="course-workspace__panel-header">
-          <div class="course-workspace__panel-heading">
-            <h2>{{ activeTabMeta.label }}</h2>
-            <span>{{ courseInfo.title }}</span>
-          </div>
-        </header>
-
-        <div class="course-workspace__panel-body">
+      <section id="teacher-course-panel" class="teacher-course-workspace__panel">
+        <div class="teacher-course-workspace__panel-body">
           <component :is="activeView" :course-id="courseId" />
         </div>
       </section>
-    </section>
+    </div>
   </main>
 </template>
 
@@ -84,12 +76,11 @@ import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { getCourseById } from '@/api/courses';
+import { getCurrentUser } from '@/api/auth';
 import {
   defaultTeacherCourseWorkspaceTab,
-  getTeacherCourseWorkspaceTab,
   teacherCourseWorkspaceTabs
 } from '@/constants/courseWorkspace';
-import { calculateSemester } from '@/utils/semester';
 import WorkspaceIcon from '@/ui/workspace/WorkspaceIcon.vue';
 
 import CourseChapters from './chapter/CourseChapters.vue';
@@ -106,6 +97,7 @@ import '@/teacher/styles/course-workspace.css';
 
 const route = useRoute();
 const router = useRouter();
+const currentUser = ref(getCurrentUser() || {});
 
 const courseViews = {
   chapters: CourseChapters,
@@ -119,54 +111,35 @@ const courseViews = {
 const activeTab = ref(defaultTeacherCourseWorkspaceTab);
 const courseId = computed(() => String(route.params.courseId || ''));
 const courseStorageKey = computed(() => `course-detail-active-tab-${courseId.value}`);
-const activeTabMeta = computed(() => getTeacherCourseWorkspaceTab(activeTab.value));
 const activeView = computed(() => courseViews[activeTab.value] || CourseChapters);
 
+const menuTabs = teacherCourseWorkspaceTabs.map(tab => ({
+  ...tab,
+  label: {
+    chapters: '章节',
+    'knowledge-graph': '知识图谱',
+    homework: '作业',
+    discussion: '讨论',
+    materials: '资料',
+    analytics: '学情分析'
+  }[tab.key] || tab.label
+}));
+
+const currentUserDisplayName = computed(() => {
+  return currentUser.value.name || currentUser.value.username || '教师';
+});
+
+const currentUserInitial = computed(() => {
+  return currentUserDisplayName.value.charAt(0).toUpperCase();
+});
+
 const courseInfo = ref({
-  title: '课程工作台',
-  description: '',
-  semester: '未设置',
-  studentCount: 0,
-  totalHours: 0,
-  progress: 0
+  title: '加载中...',
+  description: ''
 });
-
-const courseDescription = computed(() => {
-  return (courseInfo.value.description || '').trim();
-});
-
-const courseSummary = computed(() => {
-  return [
-    {
-      label: '开课学期',
-      value: courseInfo.value.semester || '未设置',
-      icon: 'calendar'
-    },
-    {
-      label: '学生人数',
-      value: `${courseInfo.value.studentCount} 人`,
-      icon: 'users'
-    },
-    {
-      label: '总课时',
-      value: `${courseInfo.value.totalHours} 学时`,
-      icon: 'clock'
-    },
-    {
-      label: '课程进度',
-      value: `${courseInfo.value.progress}%`,
-      icon: 'progress'
-    }
-  ];
-});
-
-function resolveNumericValue(value) {
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? numericValue : 0;
-}
 
 function resolveTab(tabKey) {
-  const matchedTab = teacherCourseWorkspaceTabs.find(tab => tab.key === tabKey);
+  const matchedTab = menuTabs.find(tab => tab.key === tabKey);
   return matchedTab ? matchedTab.key : defaultTeacherCourseWorkspaceTab;
 }
 
@@ -189,24 +162,14 @@ async function loadCourseInfo() {
       throw new Error('课程数据为空');
     }
 
-    const createTime = courseData.createTime || courseData.create_at || '';
-
     courseInfo.value = {
       title: courseData.name || courseData.title || `课程 ${courseId.value}`,
-      description: courseData.description || courseData.remark || '',
-      semester: courseData.semester || (createTime ? calculateSemester(createTime) : '未设置'),
-      studentCount: resolveNumericValue(courseData.studentCount),
-      totalHours: resolveNumericValue(courseData.totalHours),
-      progress: resolveNumericValue(courseData.progress)
+      description: courseData.description || courseData.remark || ''
     };
   } catch (error) {
     courseInfo.value = {
       title: `课程 ${courseId.value}`,
-      description: '课程信息暂时没有顺利取回来，但课程内容管理入口还在，先干活不耽误。',
-      semester: '未设置',
-      studentCount: 0,
-      totalHours: 0,
-      progress: 0
+      description: '课程信息暂时没有顺利取回来，但课程内容管理入口还在，先干活不耽误。'
     };
   }
 }
@@ -243,6 +206,7 @@ watch(
 watch(
   courseId,
   () => {
+    currentUser.value = getCurrentUser() || {};
     syncActiveTab();
     loadCourseInfo();
   },

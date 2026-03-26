@@ -1,8 +1,6 @@
 <template>
   <div class="materials-manager">
-    <!-- 页面标题和操作按钮 -->
-    <div class="section-header">
-      <h2 class="section-title">课程资料</h2>
+    <div class="section-header section-header--toolbar">
       <div class="section-actions">
         <button class="btn btn-primary" @click="showUploadDialog">
           <i class="btn-icon upload-icon"></i>

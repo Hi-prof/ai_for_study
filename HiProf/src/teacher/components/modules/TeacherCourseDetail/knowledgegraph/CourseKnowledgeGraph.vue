@@ -1,11 +1,6 @@
 <template>
   <div class="course-knowledge-graph">
-    <!-- 页面标题 -->
-    <div class="section-header">
-      <div class="section-title-area">
-        <h2 class="section-title">知识图谱</h2>
-        <span v-if="currentKnowledgeGraph" class="graph-name">{{ currentKnowledgeGraph.name }}</span>
-      </div>
+    <div class="section-header section-header--toolbar">
       <div class="section-actions">
         <button
           class="btn btn-outline-edit"

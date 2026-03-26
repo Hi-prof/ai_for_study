@@ -1,10 +1,5 @@
 <template>
   <div class="course-discussion">
-    <!-- 页面标题 -->
-    <div class="section-header">
-      <h2 class="section-title">讨论区</h2>
-    </div>
-
     <!-- 讨论统计 -->
     <div class="discussion-stats">
       <div class="stat-card">
@@ -27,8 +22,7 @@
 
     <!-- 会话列表部分 -->
     <div class="session-section">
-      <div class="section-header">
-        <h3 class="section-title">讨论会话</h3>
+      <div class="section-header section-header--toolbar">
         <div class="section-actions">
           <button class="btn btn-primary btn-sm" @click="createNewSession">
             <i class="btn-icon plus-icon"></i>

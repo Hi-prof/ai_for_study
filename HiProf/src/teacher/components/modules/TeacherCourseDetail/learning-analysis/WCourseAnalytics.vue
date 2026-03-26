@@ -8,9 +8,7 @@
 
     <!-- 主要内容 -->
     <div v-else class="analytics-content">
-      <!-- 页面标题 -->
-      <div class="section-header">
-        <h2 class="section-title">学情分析</h2>
+      <div class="section-header section-header--toolbar">
         <div class="section-actions">
           <button class="btn btn-secondary" @click="refreshData" :disabled="loading">
             <i class="btn-icon refresh-icon"></i>

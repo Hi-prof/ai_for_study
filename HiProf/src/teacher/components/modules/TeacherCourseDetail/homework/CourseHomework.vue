@@ -1,8 +1,6 @@
 <template>
   <div class="course-homework">
-    <!-- 页面标题 -->
-    <div class="section-header">
-      <h2 class="section-title">作业管理</h2>
+    <div class="section-header section-header--toolbar">
       <div class="section-actions">
         <button class="btn btn-primary" @click="createHomeworkAction">
           <i class="btn-icon plus-icon"></i>
