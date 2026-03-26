@@ -24,7 +24,13 @@
         </div>
         <div v-if="structuredCardFields.length > 0" class="knowledge-card-frame">
           <div v-for="field in structuredCardFields" :key="field.key" class="card-field">
-            <label class="card-item-label" :for="field.key">{{ field.label }}</label>
+            <input
+              :id="`${field.key}-label`"
+              class="card-label-input"
+              type="text"
+              :value="field.label"
+              @input="updateStructuredFieldLabel(field, ($event.target as HTMLInputElement).value)"
+            />
             <input
               v-if="field.inputType === 'input'"
               :id="field.key"
@@ -164,7 +170,7 @@ interface SaveOptions {
 
 interface StructuredCardField {
   key: string;
-  label: string;
+  defaultLabel: string;
   section: 'lightweightCard' | 'deepCard';
   property: string;
   inputType: 'input' | 'textarea';
@@ -261,19 +267,24 @@ const splitList = (value: string) => {
 };
 
 const structuredCardFieldDefinitions: StructuredCardField[] = [
-  { key: 'definition', label: '定义', section: 'lightweightCard', property: 'definition', inputType: 'textarea', rows: 3 },
-  { key: 'keywords', label: '关键词', section: 'lightweightCard', property: 'keywords', inputType: 'input', rows: 1, isList: true },
-  { key: 'example', label: '示例', section: 'lightweightCard', property: 'example', inputType: 'textarea', rows: 3 },
-  { key: 'relatedKnowledge', label: '关联知识', section: 'lightweightCard', property: 'relatedKnowledge', inputType: 'input', rows: 1, isList: true },
-  { key: 'detailedDefinition', label: '深入解析', section: 'deepCard', property: 'detailedDefinition', inputType: 'textarea', rows: 4 },
-  { key: 'coreFeatures', label: '核心特征', section: 'deepCard', property: 'coreFeatures', inputType: 'input', rows: 1, isList: true },
-  { key: 'applicationScenarios', label: '应用场景', section: 'deepCard', property: 'applicationScenarios', inputType: 'input', rows: 1, isList: true },
-  { key: 'commonQuestions', label: '常见问题', section: 'deepCard', property: 'commonQuestions', inputType: 'textarea', rows: 3, isList: true },
-  { key: 'relatedExplanation', label: '关联说明', section: 'deepCard', property: 'relatedExplanation', inputType: 'textarea', rows: 3 },
-  { key: 'references', label: '参考内容', section: 'deepCard', property: 'references', inputType: 'textarea', rows: 3, isList: true }
+  { key: 'definition', defaultLabel: '定义', section: 'lightweightCard', property: 'definition', inputType: 'textarea', rows: 3 },
+  { key: 'keywords', defaultLabel: '关键词', section: 'lightweightCard', property: 'keywords', inputType: 'input', rows: 1, isList: true },
+  { key: 'example', defaultLabel: '示例', section: 'lightweightCard', property: 'example', inputType: 'textarea', rows: 3 },
+  { key: 'relatedKnowledge', defaultLabel: '关联知识', section: 'lightweightCard', property: 'relatedKnowledge', inputType: 'input', rows: 1, isList: true },
+  { key: 'detailedDefinition', defaultLabel: '深入解析', section: 'deepCard', property: 'detailedDefinition', inputType: 'textarea', rows: 4 },
+  { key: 'coreFeatures', defaultLabel: '核心特征', section: 'deepCard', property: 'coreFeatures', inputType: 'input', rows: 1, isList: true },
+  { key: 'applicationScenarios', defaultLabel: '应用场景', section: 'deepCard', property: 'applicationScenarios', inputType: 'input', rows: 1, isList: true },
+  { key: 'commonQuestions', defaultLabel: '常见问题', section: 'deepCard', property: 'commonQuestions', inputType: 'textarea', rows: 3, isList: true },
+  { key: 'relatedExplanation', defaultLabel: '关联说明', section: 'deepCard', property: 'relatedExplanation', inputType: 'textarea', rows: 3 },
+  { key: 'references', defaultLabel: '参考内容', section: 'deepCard', property: 'references', inputType: 'textarea', rows: 3, isList: true }
 ];
 
 const hasOptimizedCard = computed(() => !!structuredNode.value?.deepCard);
+const getStructuredFieldLabel = (property: string, fallbackLabel: string) => {
+  const customLabel = structuredNode.value?.fieldLabels?.[property];
+  return typeof customLabel === 'string' && customLabel.trim() ? customLabel.trim() : fallbackLabel;
+};
+
 const structuredCardFields = computed(() => {
   const currentStructuredNode = structuredNode.value;
   if (!currentStructuredNode) {
@@ -289,6 +300,7 @@ const structuredCardFields = computed(() => {
       const rawValue = sectionValue[field.property];
       return {
         ...field,
+        label: getStructuredFieldLabel(field.property, field.defaultLabel),
         value: field.isList ? joinList(rawValue) : String(rawValue || '')
       };
     });
@@ -341,6 +353,31 @@ const updateStructuredField = (field: StructuredCardField, nextValue: string) =>
       ...(currentStructuredNode[field.section] || {}),
       [field.property]: field.isList ? splitList(nextValue) : nextValue
     }
+  };
+
+  rawContent.value = JSON.stringify(nextStructuredNode);
+};
+
+const updateStructuredFieldLabel = (field: StructuredCardField, nextLabel: string) => {
+  const currentStructuredNode = structuredNode.value;
+  if (!currentStructuredNode) {
+    return;
+  }
+
+  const trimmedLabel = nextLabel.trim();
+  const nextFieldLabels = {
+    ...(currentStructuredNode.fieldLabels || {}),
+  };
+
+  if (trimmedLabel && trimmedLabel !== field.defaultLabel) {
+    nextFieldLabels[field.property] = trimmedLabel;
+  } else {
+    delete nextFieldLabels[field.property];
+  }
+
+  const nextStructuredNode = {
+    ...currentStructuredNode,
+    fieldLabels: nextFieldLabels
   };
 
   rawContent.value = JSON.stringify(nextStructuredNode);
@@ -490,15 +527,20 @@ const buildOptimizationSourceText = () => {
     return title.value || '';
   }
 
+  const definitionLabel = getStructuredFieldLabel('definition', '定义');
+  const keywordsLabel = getStructuredFieldLabel('keywords', '关键词');
+  const exampleLabel = getStructuredFieldLabel('example', '示例');
+  const relatedKnowledgeLabel = getStructuredFieldLabel('relatedKnowledge', '关联知识');
+
   const parts = [
     `节点标题: ${title.value || structured.title || ''}`,
-    structured.lightweightCard?.definition ? `定义: ${structured.lightweightCard.definition}` : '',
+    structured.lightweightCard?.definition ? `${definitionLabel}: ${structured.lightweightCard.definition}` : '',
     Array.isArray(structured.lightweightCard?.keywords) && structured.lightweightCard.keywords.length
-      ? `关键词: ${structured.lightweightCard.keywords.join('、')}`
+      ? `${keywordsLabel}: ${structured.lightweightCard.keywords.join('、')}`
       : '',
-    structured.lightweightCard?.example ? `示例: ${structured.lightweightCard.example}` : '',
+    structured.lightweightCard?.example ? `${exampleLabel}: ${structured.lightweightCard.example}` : '',
     Array.isArray(structured.lightweightCard?.relatedKnowledge) && structured.lightweightCard.relatedKnowledge.length
-      ? `关联知识: ${structured.lightweightCard.relatedKnowledge.join('、')}`
+      ? `${relatedKnowledgeLabel}: ${structured.lightweightCard.relatedKnowledge.join('、')}`
       : ''
   ];
 
@@ -862,6 +904,23 @@ onBeforeUnmount(() => {
   color: #475569;
   font-size: 12px;
   font-weight: 600;
+}
+
+.card-label-input {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.card-label-input:focus {
+  outline: none;
+  color: #1d4ed8;
 }
 
 .card-field-input {

@@ -29,6 +29,14 @@ export const buildKnowledgeCardItems = (card, fields) => {
     .filter(item => item.value && String(item.value).trim())
 }
 
+export const getKnowledgeCardLabel = (structuredContent, property, fallbackLabel) => {
+  const customLabel = structuredContent?.fieldLabels?.[property]
+  if (typeof customLabel === 'string' && customLabel.trim()) {
+    return customLabel.trim()
+  }
+  return fallbackLabel
+}
+
 export const buildUnifiedKnowledgeCardItems = (structuredContent) => {
   if (!structuredContent) {
     return []
@@ -38,16 +46,16 @@ export const buildUnifiedKnowledgeCardItems = (structuredContent) => {
   const deepCard = structuredContent.deepCard || {}
 
   return [
-    ['定义', lightCard.definition || ''],
-    ['关键词', joinKnowledgeList(lightCard.keywords)],
-    ['示例', lightCard.example || ''],
-    ['关联知识', joinKnowledgeList(lightCard.relatedKnowledge)],
-    ['深入解析', deepCard.detailedDefinition || ''],
-    ['核心特征', joinKnowledgeList(deepCard.coreFeatures)],
-    ['应用场景', joinKnowledgeList(deepCard.applicationScenarios)],
-    ['常见问题', joinKnowledgeList(deepCard.commonQuestions)],
-    ['关联说明', deepCard.relatedExplanation || ''],
-    ['参考内容', joinKnowledgeList(deepCard.references)]
+    [getKnowledgeCardLabel(structuredContent, 'definition', '定义'), lightCard.definition || ''],
+    [getKnowledgeCardLabel(structuredContent, 'keywords', '关键词'), joinKnowledgeList(lightCard.keywords)],
+    [getKnowledgeCardLabel(structuredContent, 'example', '示例'), lightCard.example || ''],
+    [getKnowledgeCardLabel(structuredContent, 'relatedKnowledge', '关联知识'), joinKnowledgeList(lightCard.relatedKnowledge)],
+    [getKnowledgeCardLabel(structuredContent, 'detailedDefinition', '深入解析'), deepCard.detailedDefinition || ''],
+    [getKnowledgeCardLabel(structuredContent, 'coreFeatures', '核心特征'), joinKnowledgeList(deepCard.coreFeatures)],
+    [getKnowledgeCardLabel(structuredContent, 'applicationScenarios', '应用场景'), joinKnowledgeList(deepCard.applicationScenarios)],
+    [getKnowledgeCardLabel(structuredContent, 'commonQuestions', '常见问题'), joinKnowledgeList(deepCard.commonQuestions)],
+    [getKnowledgeCardLabel(structuredContent, 'relatedExplanation', '关联说明'), deepCard.relatedExplanation || ''],
+    [getKnowledgeCardLabel(structuredContent, 'references', '参考内容'), joinKnowledgeList(deepCard.references)]
   ]
     .map(([label, value]) => ({ label, value }))
     .filter(item => item.value && String(item.value).trim())
