@@ -219,6 +219,21 @@ const isAllMembersSelected = computed(() => {
          newSessionForm.value.memberIds.length === availableMembers.value.length;
 });
 
+const belongsToCurrentCourse = (session) => {
+  const candidateCourseIds = [
+    session?.courseId,
+    session?.params?.courseId,
+    session?.course?.id,
+    session?.course?.courseId
+  ];
+
+  return candidateCourseIds.some(courseId => (
+    courseId !== null &&
+    courseId !== undefined &&
+    String(courseId) === String(props.courseId)
+  )) || (typeof session?.remark === 'string' && session.remark.includes(`课程${props.courseId}`));
+};
+
 // 加载会话列表
 const loadSessionList = async () => {
   if (!props.courseId) {
@@ -231,97 +246,53 @@ const loadSessionList = async () => {
     console.log('正在加载课程会话列表，课程ID:', props.courseId);
 
     let response;
+    let usedFallback = false;
 
-    try {
-      // 首先尝试按课程ID获取会话列表
-      response = await getSessionListByCourse(props.courseId);
-      console.log('按课程ID获取会话列表成功:', response);
-    } catch (error) {
-      console.warn('按课程ID获取会话列表失败，尝试获取所有会话:', error);
-
-      // 如果按课程ID获取失败，尝试获取所有会话然后过滤
-      try {
-        response = await getSessionList();
-        console.log('获取所有会话成功，将在前端过滤:', response);
-      } catch (allSessionsError) {
-        console.error('获取所有会话也失败:', allSessionsError);
-        throw allSessionsError;
-      }
+    // 首先尝试按课程ID获取会话列表
+    response = await getSessionListByCourse(props.courseId);
+    if (!response || response.code !== 200) {
+      console.warn('按课程ID获取会话列表失败，尝试获取所有会话:', response);
+      response = await getSessionList();
+      usedFallback = true;
+      console.log('获取所有会话成功，将在前端过滤:', response);
     }
 
-    // 处理API响应
-    if (response && typeof response === 'object') {
-      let sessionData = [];
-      let total = 0;
-
-      // 检查不同的响应格式
-      if (response.hasOwnProperty('rows') && response.hasOwnProperty('code')) {
-        // TableDataInfo格式
-        if (response.code === 0 || response.code === 200) {
-          sessionData = response.rows || [];
-          total = response.total || sessionData.length;
-        } else {
-          throw new Error(response.msg || '获取会话列表失败');
-        }
-      } else if (Array.isArray(response)) {
-        // 直接数组格式
-        sessionData = response;
-        total = sessionData.length;
-      } else if (response.data) {
-        // 嵌套格式
-        sessionData = Array.isArray(response.data) ? response.data : (response.data.rows || []);
-        total = response.data.total || sessionData.length;
-      } else {
-        console.warn('未知的响应格式:', response);
-        sessionData = [];
-        total = 0;
-      }
-
-      // 如果获取的是所有会话，需要按课程ID过滤
-      if (sessionData.length > 0) {
-        // 尝试过滤与当前课程相关的会话
-        const filteredSessions = sessionData.filter(session => {
-          // 检查多种可能的课程ID字段
-          return session.courseId == props.courseId ||
-                 session.params?.courseId == props.courseId ||
-                 (session.remark && session.remark.includes(`课程${props.courseId}`));
-        });
-
-        if (filteredSessions.length > 0) {
-          sessionList.value = filteredSessions;
-          console.log('过滤后的会话列表:', filteredSessions);
-        } else {
-          // 如果没有找到相关会话，显示所有会话（可能是数据结构不同）
-          sessionList.value = sessionData;
-          console.log('未找到课程相关会话，显示所有会话:', sessionData);
-        }
-      } else {
-        sessionList.value = [];
-      }
-
-      // 更新讨论统计数据
-      discussionStats.value = {
-        totalTopics: sessionList.value.length,
-        totalReplies: sessionList.value.reduce((sum, session) => sum + (session.replyCount || 0), 0),
-        activeUsers: sessionList.value.reduce((sum, session) => sum + (session.memberCount || 0), 0),
-        todayPosts: sessionList.value.filter(session => {
-          if (!session.createTime) return false;
-          const today = new Date().toDateString();
-          const sessionDate = new Date(session.createTime).toDateString();
-          return today === sessionDate;
-        }).length
-      };
-
-      console.log('会话列表加载成功，共', sessionList.value.length, '个会话');
-      console.log('统计数据:', discussionStats.value);
-
-    } else {
-      console.error('API响应为空或格式错误:', response);
-      sessionList.value = [];
+    if (!response || response.code !== 200) {
+      throw new Error(response?.message || '获取会话列表失败');
     }
+
+    let sessionData = Array.isArray(response.rows) ? response.rows : [];
+    if (usedFallback) {
+      sessionData = sessionData.filter(belongsToCurrentCourse);
+      console.log('前端按课程过滤后的会话列表:', sessionData);
+    }
+
+    sessionList.value = sessionData;
+
+    // 更新讨论统计数据
+    discussionStats.value = {
+      totalTopics: sessionList.value.length,
+      totalReplies: sessionList.value.reduce((sum, session) => sum + (session.replyCount || 0), 0),
+      activeUsers: sessionList.value.reduce((sum, session) => sum + (session.memberCount || 0), 0),
+      todayPosts: sessionList.value.filter(session => {
+        if (!session.createTime) return false;
+        const today = new Date().toDateString();
+        const sessionDate = new Date(session.createTime).toDateString();
+        return today === sessionDate;
+      }).length
+    };
+
+    console.log('会话列表加载成功，共', sessionList.value.length, '个会话');
+    console.log('统计数据:', discussionStats.value);
   } catch (error) {
     console.error('加载会话列表时发生错误:', error);
     sessionList.value = [];
+    discussionStats.value = {
+      totalTopics: 0,
+      totalReplies: 0,
+      activeUsers: 0,
+      todayPosts: 0
+    };
 
     // 显示用户友好的错误信息
     if (error.response?.status === 400) {

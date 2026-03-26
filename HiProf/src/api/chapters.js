@@ -10,7 +10,7 @@ const extractArrayFromResponse = (response, context = '数据') => {
   
   if (!response) {
     console.warn(`${context}为空`);
-    return [];
+    return null;
   }
   
   // 如果直接是数组
@@ -20,7 +20,7 @@ const extractArrayFromResponse = (response, context = '数据') => {
   
   if (typeof response !== 'object') {
     console.warn(`${context}不是对象类型:`, typeof response);
-    return [];
+    return null;
   }
   
   // 尝试从各种可能的字段中提取数组数据
@@ -37,13 +37,14 @@ const extractArrayFromResponse = (response, context = '数据') => {
   ];
   
   for (const field of possibleFields) {
-    if (response[field]) {
-      if (Array.isArray(response[field])) {
-        return response[field];
-      } else if (response[field] && typeof response[field] === 'object') {
+    if (Object.prototype.hasOwnProperty.call(response, field)) {
+      const fieldValue = response[field];
+      if (Array.isArray(fieldValue)) {
+        return fieldValue;
+      } else if (fieldValue && typeof fieldValue === 'object') {
         // 递归检查嵌套对象
-        const nested = extractArrayFromResponse(response[field], `${context}.${field}`);
-        if (nested.length > 0) {
+        const nested = extractArrayFromResponse(fieldValue, `${context}.${field}`);
+        if (Array.isArray(nested)) {
           return nested;
         }
       }
@@ -51,7 +52,7 @@ const extractArrayFromResponse = (response, context = '数据') => {
   }
   
   console.warn(`无法从${context}中提取数组数据，响应结构:`, Object.keys(response));
-  return [];
+  return null;
 };
 
 /**
@@ -82,7 +83,7 @@ export const getCourseChapterList = (courseId) => {
     const extractedData = extractArrayFromResponse(response, `课程${courseId}的章节列表`);
     
     // 如果成功提取到数据，返回标准格式
-    if (extractedData.length > 0) {
+    if (Array.isArray(extractedData)) {
       return { 
         rows: extractedData,
         total: extractedData.length,

@@ -1,5 +1,5 @@
 import request from './axios';
-import { checkAuthInResponse } from '@/utils/apiResponseHandler';
+import { handleApiResponse } from '@/utils/apiHandler';
 
 /**
  * 检测后端服务连通性
@@ -24,54 +24,6 @@ export const checkBackendConnection = async () => {
 
 
 
-
-/**
- * 标准API响应处理器
- * @param {Promise} apiCall - API调用Promise
- * @param {string} apiName - API名称
- * @returns {Promise<Object>} 标准化响应
- */
-const handleApiResponse = async (apiCall, apiName) => {
-  try {
-    const response = await apiCall;
-    console.log(`${apiName}成功:`, response);
-
-    // 检查认证状态
-    const checkedResponse = await checkAuthInResponse(response, apiName);
-
-    // 401错误直接返回
-    if (checkedResponse.code === 401) {
-      return {
-        code: 401,
-        message: checkedResponse.msg || 'Token已过期，请重新登录',
-        data: null
-      };
-    }
-
-    // 标准化成功响应
-    return {
-      code: 200,
-      message: checkedResponse.msg || 'success',
-      data: checkedResponse.data || checkedResponse,
-      // 保持列表API的兼容性
-      ...(checkedResponse.rows && {
-        total: checkedResponse.total || 0,
-        rows: checkedResponse.rows
-      })
-    };
-  } catch (error) {
-    console.error(`${apiName}失败:`, error);
-
-    // 标准化错误响应
-    const statusCode = error.response?.status || 500;
-    return {
-      code: statusCode,
-      message: error.response?.data?.message || error.message || `${apiName}失败`,
-      data: null,
-      error: error.response?.data || error.message
-    };
-  }
-};
 
 /**
  * 上传文件

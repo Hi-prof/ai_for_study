@@ -256,13 +256,17 @@ const handleSubmit = async () => {
 
     console.log('创建讨论数据:', sessionData);
     const response = await createSession(sessionData);
+    if (!response || response.code !== 200) {
+      throw new Error(response?.message || '创建讨论失败，请稍后重试');
+    }
+
     console.log('创建讨论成功:', response);
 
     emit('success', response);
     closeModal();
   } catch (error) {
     console.error('创建讨论失败:', error);
-    alert('创建讨论失败，请稍后重试');
+    alert(error.message || '创建讨论失败，请稍后重试');
   } finally {
     loading.value = false;
   }

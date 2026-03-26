@@ -1,9 +1,87 @@
 import request from './axios';
+import { checkAuthInResponse } from '@/utils/apiResponseHandler';
 
 /**
  * 会话管理相关API
  * 用于教师端课程详细页面的讨论模块
  */
+
+const buildStandardSessionResponse = (checkedResponse) => {
+  const standardResponse = {
+    code: 200,
+    message: checkedResponse.msg || checkedResponse.message || 'success',
+    data: checkedResponse.data ?? checkedResponse
+  };
+
+  if (Array.isArray(checkedResponse.rows)) {
+    standardResponse.total = checkedResponse.total ?? checkedResponse.rows.length;
+    standardResponse.rows = checkedResponse.rows;
+  } else if (Array.isArray(checkedResponse.data?.rows)) {
+    standardResponse.total = checkedResponse.data.total ?? checkedResponse.total ?? checkedResponse.data.rows.length;
+    standardResponse.rows = checkedResponse.data.rows;
+  } else if (Array.isArray(checkedResponse.data)) {
+    standardResponse.total = checkedResponse.total ?? checkedResponse.data.length;
+    standardResponse.rows = checkedResponse.data;
+  } else if (Array.isArray(checkedResponse)) {
+    standardResponse.total = checkedResponse.length;
+    standardResponse.rows = checkedResponse;
+    standardResponse.data = checkedResponse;
+  }
+
+  return standardResponse;
+};
+
+const handleSessionApiResponse = async (apiCall, apiName) => {
+  try {
+    const response = await apiCall;
+    console.log(`${apiName}成功:`, response);
+
+    const checkedResponse = checkAuthInResponse(response, apiName);
+
+    if (checkedResponse.code === 401) {
+      return {
+        code: 401,
+        message: checkedResponse.msg || 'Token已过期，请重新登录',
+        data: null
+      };
+    }
+
+    const hasCode = Object.prototype.hasOwnProperty.call(checkedResponse || {}, 'code');
+    const normalizedCode = hasCode ? Number(checkedResponse.code) : null;
+    const isSuccessCode = !hasCode || normalizedCode === 200 || normalizedCode === 0;
+    const isSuccess = checkedResponse?.success === true ||
+      (checkedResponse?.success !== false && isSuccessCode);
+
+    if (!isSuccess) {
+      const errorResponse = {
+        code: hasCode && Number.isFinite(normalizedCode) ? normalizedCode : 500,
+        message: checkedResponse?.msg || checkedResponse?.message || `${apiName}失败`,
+        data: checkedResponse?.data ?? null,
+        error: checkedResponse
+      };
+
+      if (Array.isArray(checkedResponse?.rows)) {
+        errorResponse.total = checkedResponse.total ?? checkedResponse.rows.length;
+        errorResponse.rows = checkedResponse.rows;
+      } else if (Array.isArray(checkedResponse?.data?.rows)) {
+        errorResponse.total = checkedResponse.data.total ?? checkedResponse.total ?? checkedResponse.data.rows.length;
+        errorResponse.rows = checkedResponse.data.rows;
+      }
+
+      return errorResponse;
+    }
+
+    return buildStandardSessionResponse(checkedResponse);
+  } catch (error) {
+    console.error(`${apiName}失败:`, error);
+    return {
+      code: error.response?.status || 500,
+      message: error.response?.data?.message || error.message || `${apiName}失败`,
+      data: null,
+      error: error.response?.data || error.message
+    };
+  }
+};
 
 /**
  * 查询会话列表
@@ -32,7 +110,7 @@ export const getSessionList = (queryParams = {}) => {
 
   console.log('清理后的查询参数:', cleanParams);
 
-  return request({
+  const apiCall = request({
     url: '/core/session/list',
     method: 'get',
     params: cleanParams,
@@ -40,15 +118,9 @@ export const getSessionList = (queryParams = {}) => {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded'
     }
-  }).then(response => {
-    console.log('获取会话列表API原始响应:', response);
-
-    // 直接返回响应，让调用方处理
-    return response;
-  }).catch(error => {
-    console.error('获取会话列表失败:', error);
-    throw error;
   });
+
+  return handleSessionApiResponse(apiCall, '获取会话列表');
 };
 
 /**
@@ -80,20 +152,16 @@ export const createSession = (sessionData) => {
 
   console.log('发送到API的ChatSessionVo对象:', chatSessionVo);
 
-  return request({
+  const apiCall = request({
     url: '/core/session',
     method: 'post',
     data: chatSessionVo,
     headers: {
       'Content-Type': 'application/json'
     }
-  }).then(response => {
-    console.log('创建讨论成功:', response);
-    return response;
-  }).catch(error => {
-    console.error('创建讨论失败:', error);
-    throw error;
   });
+
+  return handleSessionApiResponse(apiCall, '创建讨论');
 };
 
 /**
@@ -127,20 +195,16 @@ export const updateSession = (sessionData) => {
 
   console.log('发送到API的ChatSession对象:', chatSession);
 
-  return request({
+  const apiCall = request({
     url: '/core/session',
     method: 'put',
     data: chatSession,
     headers: {
       'Content-Type': 'application/json'
     }
-  }).then(response => {
-    console.log('更新会话成功:', response);
-    return response;
-  }).catch(error => {
-    console.error('更新会话失败:', error);
-    throw error;
   });
+
+  return handleSessionApiResponse(apiCall, '更新会话');
 };
 
 /**
@@ -154,16 +218,12 @@ export const deleteSession = (sessionIds) => {
   // 处理单个ID或ID数组
   const ids = Array.isArray(sessionIds) ? sessionIds.join(',') : sessionIds;
   
-  return request({
+  const apiCall = request({
     url: `/core/session/${ids}`,
     method: 'delete'
-  }).then(response => {
-    console.log('删除会话成功:', response);
-    return response;
-  }).catch(error => {
-    console.error('删除会话失败:', error);
-    throw error;
   });
+
+  return handleSessionApiResponse(apiCall, '删除会话');
 };
 
 /**
@@ -174,16 +234,12 @@ export const deleteSession = (sessionIds) => {
 export const getSessionDetail = (sessionId) => {
   console.log('正在获取会话详情...', sessionId);
   
-  return request({
+  const apiCall = request({
     url: `/core/session/${sessionId}`,
     method: 'get'
-  }).then(response => {
-    console.log('获取会话详情成功:', response);
-    return response;
-  }).catch(error => {
-    console.error('获取会话详情失败:', error);
-    throw error;
   });
+
+  return handleSessionApiResponse(apiCall, '获取会话详情');
 };
 
 /**
@@ -205,27 +261,16 @@ export const getSessionListByCourse = (courseId, additionalParams = {}) => {
   console.log('构建的查询参数:', queryParams);
   console.log('最终请求URL将是: /core/session/list?courseId=' + courseId);
 
-  return request({
+  const apiCall = request({
     url: '/core/session/list',
     method: 'get',
     params: queryParams,
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded'
     }
-  }).then(response => {
-    console.log('获取课程会话列表成功:', response);
-    return response;
-  }).catch(error => {
-    console.error('获取课程会话列表失败:', error);
-    console.error('错误详情:', {
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      url: error.config?.url,
-      params: error.config?.params
-    });
-    throw error;
   });
+
+  return handleSessionApiResponse(apiCall, '获取课程会话列表');
 };
 
 /**
@@ -260,17 +305,13 @@ export const getSessionMessages = (sessionId, params = {}) => {
     ...params
   };
 
-  return request({
+  const apiCall = request({
     url: `/core/session/${sessionId}/messages`,
     method: 'get',
     params: queryParams
-  }).then(response => {
-    console.log('获取会话消息列表成功:', response);
-    return response;
-  }).catch(error => {
-    console.error('获取会话消息列表失败:', error);
-    throw error;
   });
+
+  return handleSessionApiResponse(apiCall, '获取会话消息列表');
 };
 
 /**
@@ -290,20 +331,16 @@ export const sendMessage = (sessionId, messageData) => {
     sessionId: sessionId
   };
 
-  return request({
+  const apiCall = request({
     url: `/core/session/${sessionId}/messages`,
     method: 'post',
     data: message,
     headers: {
       'Content-Type': 'application/json'
     }
-  }).then(response => {
-    console.log('发送消息成功:', response);
-    return response;
-  }).catch(error => {
-    console.error('发送消息失败:', error);
-    throw error;
   });
+
+  return handleSessionApiResponse(apiCall, '发送消息');
 };
 
 /**
@@ -315,16 +352,12 @@ export const sendMessage = (sessionId, messageData) => {
 export const deleteMessage = (sessionId, messageId) => {
   console.log('正在删除消息...', sessionId, messageId);
 
-  return request({
+  const apiCall = request({
     url: `/core/session/${sessionId}/messages/${messageId}`,
     method: 'delete'
-  }).then(response => {
-    console.log('删除消息成功:', response);
-    return response;
-  }).catch(error => {
-    console.error('删除消息失败:', error);
-    throw error;
   });
+
+  return handleSessionApiResponse(apiCall, '删除消息');
 };
 
 /**
@@ -335,16 +368,12 @@ export const deleteMessage = (sessionId, messageId) => {
 export const getSessionParticipants = (sessionId) => {
   console.log('正在获取会话参与者列表...', sessionId);
 
-  return request({
+  const apiCall = request({
     url: `/core/session/${sessionId}/participants`,
     method: 'get'
-  }).then(response => {
-    console.log('获取会话参与者列表成功:', response);
-    return response;
-  }).catch(error => {
-    console.error('获取会话参与者列表失败:', error);
-    throw error;
   });
+
+  return handleSessionApiResponse(apiCall, '获取会话参与者列表');
 };
 
 /**
@@ -361,19 +390,14 @@ export const getSessionMembers = (sessionId, role = null) => {
     params.role = role;
   }
 
-  return request({
+  const apiCall = request({
     url: `/core/member/${sessionId}`,
     method: 'get',
     params,
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded'
     }
-  }).then(response => {
-    console.log('获取会话成员信息成功:', response);
-    return response;
-  }).catch(error => {
-    console.error('获取会话成员信息失败:', error);
-    throw error;
   });
-};
 
+  return handleSessionApiResponse(apiCall, '获取会话成员信息');
+};

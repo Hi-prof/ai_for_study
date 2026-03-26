@@ -67,7 +67,7 @@ export function useChapterManagement(courseId) {
   const fetchCourseChapters = async () => {
     try {
       const response = await getCourseChapterList(courseId);
-      if (response && response.rows && response.rows.length > 0) {
+      if (response && Array.isArray(response.rows)) {
         return response.rows;
       }
 

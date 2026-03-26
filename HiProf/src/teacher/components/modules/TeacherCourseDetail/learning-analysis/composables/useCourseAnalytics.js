@@ -3,8 +3,8 @@ import {
   getSummariesByCourse,
   getScoreItemsByCourse,
   getScoreRecordsList,
-  createScoreItem,
-  updateScoreItem,
+  createScoreItem as createScoreItemApi,
+  updateScoreItem as updateScoreItemApi,
   deleteScoreItem as apiDeleteScoreItem
 } from '@/api/summaries'
 
@@ -128,7 +128,7 @@ export function useCourseAnalytics(courseId) {
   // 创建评分项目
   const createScoreItem = async (itemData) => {
     try {
-      const response = await createScoreItem(itemData);
+      const response = await createScoreItemApi(itemData);
       if (response.code !== 200) {
         throw new Error(response.message || '创建评分项目失败');
       }
@@ -142,7 +142,7 @@ export function useCourseAnalytics(courseId) {
   // 更新评分项目
   const updateScoreItem = async (itemData) => {
     try {
-      const response = await updateScoreItem(itemData);
+      const response = await updateScoreItemApi(itemData);
       if (response.code !== 200) {
         throw new Error(response.message || '更新评分项目失败');
       }

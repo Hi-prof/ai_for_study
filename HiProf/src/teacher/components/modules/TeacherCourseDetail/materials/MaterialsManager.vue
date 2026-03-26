@@ -139,13 +139,14 @@ const breadcrumbs = ref([
 
 // 计算过滤后的资料
 const filteredMaterials = computed(() => {
-  let filtered = materials.value;
+  let filtered = [...materials.value];
 
   // 按搜索关键词过滤
   if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase();
     filtered = filtered.filter(material =>
-      material.fileUrl.toLowerCase().includes(query) ||
+      getDisplayFileName(material).toLowerCase().includes(query) ||
+      getFileName(material.fileUrl).toLowerCase().includes(query) ||
       (material.remark && material.remark.toLowerCase().includes(query))
     );
   }
@@ -154,7 +155,7 @@ const filteredMaterials = computed(() => {
   filtered.sort((a, b) => {
     switch (sortBy.value) {
       case 'name':
-        return a.fileUrl.localeCompare(b.fileUrl);
+        return getDisplayFileName(a).localeCompare(getDisplayFileName(b), 'zh-CN');
       case 'date':
         return new Date(b.createTime) - new Date(a.createTime);
       case 'size':
@@ -181,30 +182,45 @@ const loadMaterials = async () => {
     const response = await getCourseFilesList(params);
     console.log('API响应数据:', response);
 
-    if (response && response.rows) {
-      materials.value = response.rows;
-      console.log('设置materials数据:', materials.value);
+    if (!response || response.code !== 200) {
+      throw new Error(response?.message || '加载课程资料失败');
+    }
 
-      // 计算统计数据
-      materialStats.value = {
-        totalFiles: materials.value.length,
-        totalSize: materials.value.reduce((sum, m) => sum + (m.fileSize || 0), 0),
-        totalDownloads: materials.value.reduce((sum, m) => sum + (m.downloadCount || 0), 0),
-        recentUploads: materials.value.filter(m => {
-          const createTime = new Date(m.createTime);
-          const weekAgo = new Date();
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          return createTime >= weekAgo;
-        }).length
-      };
-      console.log('统计数据:', materialStats.value);
+    if (Array.isArray(response.rows)) {
+      materials.value = response.rows;
+    } else if (Array.isArray(response.data?.rows)) {
+      materials.value = response.data.rows;
+    } else if (Array.isArray(response.data)) {
+      materials.value = response.data;
     } else {
-      console.log('API响应中没有rows数据或response为空:', response);
       materials.value = [];
     }
+
+    console.log('设置materials数据:', materials.value);
+
+    // 计算统计数据
+    materialStats.value = {
+      totalFiles: materials.value.length,
+      totalSize: materials.value.reduce((sum, m) => sum + (m.fileSize || 0), 0),
+      totalDownloads: materials.value.reduce((sum, m) => sum + (m.downloadCount || 0), 0),
+      recentUploads: materials.value.filter(m => {
+        const createTime = new Date(m.createTime);
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        return createTime >= weekAgo;
+      }).length
+    };
+    console.log('统计数据:', materialStats.value);
   } catch (error) {
     console.error('加载课程资料失败:', error);
     materials.value = [];
+    materialStats.value = {
+      totalFiles: 0,
+      totalSize: 0,
+      totalDownloads: 0,
+      recentUploads: 0
+    };
+    alert(`加载课程资料失败：${error.message || '请重试'}`);
   } finally {
     loading.value = false;
   }
@@ -316,7 +332,10 @@ const handleDelete = async (material) => {
   }
 
   try {
-    await deleteCourseFile(material.id);
+    const response = await deleteCourseFile(material.id);
+    if (!response || response.code !== 200) {
+      throw new Error(response?.message || '删除文件失败，请重试');
+    }
 
     // 重新加载列表
     await loadMaterials();
