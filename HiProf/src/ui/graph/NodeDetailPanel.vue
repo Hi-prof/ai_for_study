@@ -78,9 +78,12 @@
       </div>
 
       <!-- 文件上传区域 -->
-      <div class="node-files">
-        <div class="content-header">
-          <h4>知识资料</h4>
+      <div class="node-files" :class="{ collapsed: !isFilesSectionExpanded }">
+        <div class="content-header files-header">
+          <div class="files-title-wrap">
+            <h4>知识资料</h4>
+            <span class="files-summary">{{ filesSummaryText }}</span>
+          </div>
           <div class="header-right">
             <button
               class="upload-button"
@@ -88,6 +91,13 @@
               :disabled="isUploading"
             >
               📁 上传文件
+            </button>
+            <button
+              class="files-toggle-button"
+              type="button"
+              @click="toggleFilesSection"
+            >
+              {{ isFilesSectionExpanded ? '收起' : '展开' }}
             </button>
           </div>
         </div>
@@ -102,41 +112,43 @@
           style="display: none;"
         />
 
-        <!-- 上传进度 -->
-        <div v-if="isUploading" class="upload-progress">
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: uploadProgress + '%' }"></div>
-          </div>
-          <p class="progress-text">{{ uploadProgressText }}</p>
-        </div>
-
-        <!-- 文件列表 -->
-        <div v-if="nodeFiles.length > 0" class="files-list">
-          <div
-            v-for="file in nodeFiles"
-            :key="file.id"
-            class="file-item"
-          >
-            <div class="file-info">
-              <span class="file-name">{{ file.originalFileName || file.fileName }}</span>
-              <span class="file-size">{{ formatFileSize(file.fileSize) }}</span>
+        <div v-show="isFilesSectionExpanded" class="files-body">
+          <!-- 上传进度 -->
+          <div v-if="isUploading" class="upload-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: uploadProgress + '%' }"></div>
             </div>
-            <div class="file-actions">
-              <a
-                :href="file.fileUrl"
-                target="_blank"
-                class="file-link"
-                title="查看文件"
-              >
-                📄
-              </a>
+            <p class="progress-text">{{ uploadProgressText }}</p>
+          </div>
+
+          <!-- 文件列表 -->
+          <div v-if="nodeFiles.length > 0" class="files-list">
+            <div
+              v-for="file in nodeFiles"
+              :key="file.id"
+              class="file-item"
+            >
+              <div class="file-info">
+                <span class="file-name">{{ file.originalFileName || file.fileName }}</span>
+                <span class="file-size">{{ formatFileSize(file.fileSize) }}</span>
+              </div>
+              <div class="file-actions">
+                <a
+                  :href="file.fileUrl"
+                  target="_blank"
+                  class="file-link"
+                  title="查看文件"
+                >
+                  📄
+                </a>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- 空状态 -->
-        <div v-else-if="!isUploading" class="empty-files">
-          <p class="empty-text">暂无上传文件</p>
+          <!-- 空状态 -->
+          <div v-else-if="!isUploading" class="empty-files compact-empty-files">
+            <p class="empty-text">暂无上传文件</p>
+          </div>
         </div>
       </div>
 
@@ -211,6 +223,7 @@ const resources = ref<any[]>([]);
 const contentLength = ref(0);
 const fileInput = ref<HTMLInputElement | null>(null);
 const isOptimizingCard = ref(false);
+const isFilesSectionExpanded = ref(false);
 const isSaving = ref(false);
 const saveState = ref<'idle' | 'saving' | 'saved' | 'error'>('saved');
 const saveErrorMessage = ref('');
@@ -230,6 +243,15 @@ const nodeFiles = computed(() => {
     return [];
   }
   return getNodeFiles('节点文件', props.node.id);
+});
+const filesSummaryText = computed(() => {
+  if (isUploading.value) {
+    return '上传中';
+  }
+  if (nodeFiles.value.length > 0) {
+    return `${nodeFiles.value.length} 个文件`;
+  }
+  return '暂无文件';
 });
 
 const parseStructuredNode = (value: string) => {
@@ -483,6 +505,7 @@ watch(() => props.node, (newNode) => {
     content.value = isStructuredContent.value ? '' : rawContent.value;
     resources.value = newNode.resources || [];
     imageResult.value = null; // Reset image result on node change
+    isFilesSectionExpanded.value = false;
     resetSaveState();
     isHydratingNode.value = false;
 
@@ -595,6 +618,10 @@ const close = async () => {
   } catch (error: any) {
     alert(error?.message || '自动保存失败，请稍后重试');
   }
+};
+
+const toggleFilesSection = () => {
+  isFilesSectionExpanded.value = !isFilesSectionExpanded.value;
 };
 
 
@@ -710,6 +737,7 @@ const searchContent = async () => {
 
 // 触发文件选择
 const triggerFileInput = () => {
+  isFilesSectionExpanded.value = true;
   if (fileInput.value) {
     fileInput.value.click();
   }
@@ -733,6 +761,8 @@ const handleFileSelect = async (event: Event) => {
     alert('缺少节点ID，无法上传文件');
     return;
   }
+
+  isFilesSectionExpanded.value = true;
 
   try {
     for (let i = 0; i < files.length; i++) {
@@ -981,6 +1011,90 @@ onBeforeUnmount(() => {
 .card-field-textarea {
   resize: vertical;
   min-height: 92px;
+}
+
+.node-files {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(6px);
+}
+
+.node-files.collapsed {
+  padding-bottom: 14px;
+}
+
+.files-header {
+  margin-bottom: 0;
+  gap: 12px;
+}
+
+.files-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.files-title-wrap h4 {
+  margin: 0;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.files-summary {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.node-files .header-right {
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.node-files .upload-button,
+.files-toggle-button {
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.files-toggle-button {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.files-toggle-button:hover {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #f8fbff;
+}
+
+.files-body {
+  margin-top: 12px;
+}
+
+.compact-empty-files {
+  margin-top: 10px;
+  padding: 18px 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  background: rgba(248, 250, 252, 0.9);
 }
 
 .empty-card-state {
