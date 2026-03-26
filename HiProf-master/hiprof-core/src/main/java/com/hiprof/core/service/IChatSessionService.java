@@ -61,5 +61,5 @@ public interface IChatSessionService
     public int deleteChatSessionById(Long id);
 
 
-    long isExistSession(Long toId, Long fromId);
+    long isExistSession(Long toId, Long fromId, Long courseId);
 }

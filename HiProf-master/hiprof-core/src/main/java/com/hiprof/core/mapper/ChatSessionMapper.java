@@ -2,6 +2,7 @@ package com.hiprof.core.mapper;
 
 import java.util.List;
 import com.hiprof.core.domain.ChatSession;
+import org.apache.ibatis.annotations.Param;
 
 /**
  * 会话Mapper接口
@@ -59,5 +60,5 @@ public interface ChatSessionMapper
      */
     public int deleteChatSessionByIds(Long[] ids);
 
-    public Long selectPrivateSession(Long toId, Long fromId);
+    public Long selectPrivateSession(@Param("toId") Long toId, @Param("fromId") Long fromId, @Param("courseId") Long courseId);
 }

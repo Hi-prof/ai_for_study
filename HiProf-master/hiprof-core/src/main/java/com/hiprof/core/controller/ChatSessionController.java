@@ -78,8 +78,9 @@ public class ChatSessionController extends BaseController
     @GetMapping(value = "/isExist/{id}")
     public AjaxResult isExistSession(
             @PathVariable("id") Long toId,
+            @RequestParam(value = "courseId", required = false) Long courseId,
             @AuthenticationPrincipal LoginUser loginUser) {
-        return success(chatSessionService.isExistSession(toId, loginUser.getUserId()));
+        return success(chatSessionService.isExistSession(toId, loginUser.getUserId(), courseId));
     }
     /**
      * 新增会话

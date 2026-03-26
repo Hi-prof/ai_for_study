@@ -2,6 +2,7 @@ package com.hiprof.core.service.impl;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.hiprof.common.exception.ServiceException;
 import com.hiprof.common.utils.DateUtils;
 import com.hiprof.core.domain.ChatMembers;
 import com.hiprof.core.domain.vo.ChatSessionVo;
@@ -66,6 +67,12 @@ public class ChatSessionServiceImpl implements IChatSessionService
     @Override
     public Long insertChatSession(ChatSessionVo chatSessionVo)
     {
+        if (chatSessionVo.getCourseId() == null) {
+            throw new ServiceException("课程ID不能为空");
+        }
+        if (chatSessionVo.getMemberIds() == null || chatSessionVo.getMemberIds().isEmpty()) {
+            throw new ServiceException("会话成员不能为空");
+        }
         //创建会话
         chatSessionVo.setCreateTime(DateUtils.getNowDate());
         chatSessionMapper.insertChatSession(chatSessionVo);
@@ -133,7 +140,8 @@ public class ChatSessionServiceImpl implements IChatSessionService
     }
 
     @Override
-    public long isExistSession(Long toId, Long fromId) {
-        return chatSessionMapper.selectPrivateSession(toId,fromId);
+    public long isExistSession(Long toId, Long fromId, Long courseId) {
+        Long sessionId = chatSessionMapper.selectPrivateSession(toId, fromId, courseId);
+        return sessionId == null ? 0L : sessionId;
     }
 }

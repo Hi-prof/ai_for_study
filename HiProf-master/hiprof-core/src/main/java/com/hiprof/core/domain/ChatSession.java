@@ -25,6 +25,11 @@ public class ChatSession extends BaseEntity {
     @Excel(name = "会话名，私聊无需名字")
     private String name;
 
+    /** 所属课程ID */
+    @Schema(title = "所属课程ID")
+    @Excel(name = "所属课程ID")
+    private Long courseId;
+
     public void setId(Long id) 
     {
         this.id = id;
@@ -45,11 +50,22 @@ public class ChatSession extends BaseEntity {
         return name;
     }
 
+    public void setCourseId(Long courseId)
+    {
+        this.courseId = courseId;
+    }
+
+    public Long getCourseId()
+    {
+        return courseId;
+    }
+
     @Override
     public String toString() {
         return new ToStringBuilder(this,ToStringStyle.MULTI_LINE_STYLE)
             .append("id", getId())
             .append("name", getName())
+            .append("courseId", getCourseId())
             .append("createBy", getCreateBy())
             .append("createTime", getCreateTime())
             .append("updateTime", getUpdateTime())
