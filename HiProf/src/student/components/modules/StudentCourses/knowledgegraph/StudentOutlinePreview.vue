@@ -46,9 +46,8 @@
         </div>
         <div class="detail-content">
           <div v-if="selectedNodeStructured" class="content-section card-section">
-            <div class="section-header-line">
-              <h4 class="section-title">知识卡片</h4>
-              <span v-if="selectedNodeStructured.isFocus" class="focus-badge">重点节点</span>
+            <div v-if="selectedNodeStructured.isFocus" class="card-focus-row">
+              <span class="focus-badge">重点节点</span>
             </div>
             <div v-if="selectedNodeCardItems.length > 0" class="card-block">
               <div v-for="item in selectedNodeCardItems" :key="item.label" class="card-item">
@@ -381,13 +380,6 @@ defineExpose({
   margin-bottom: 1.5rem;
 }
 
-.section-header-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
 .focus-badge {
   display: inline-flex;
   align-items: center;
@@ -397,6 +389,12 @@ defineExpose({
   color: #1d4ed8;
   font-size: 12px;
   font-weight: 600;
+}
+
+.card-focus-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
 }
 
 .card-section {

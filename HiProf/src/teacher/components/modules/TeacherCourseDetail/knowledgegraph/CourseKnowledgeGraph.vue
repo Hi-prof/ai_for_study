@@ -367,20 +367,28 @@ const handleTreeLineClick = (line) => {
 };
 
 // 处理节点编辑面板关闭
-const handleNodeEditClose = () => {
+const handleNodeEditClose = async (options = {}) => {
   showNodeEditDialog.value = false;
   selectedNode.value = null;
+
+  if (options?.refreshGraph) {
+    await refreshKnowledgeGraph();
+  }
 };
 
 // 处理节点编辑保存
-const handleNodeEditSave = async (nodeData) => {
+const handleNodeEditSave = async (nodeData, resolve, reject, options = {}) => {
   try {
     console.log('保存节点数据:', nodeData);
 
     // 验证必要的数据
     if (!nodeData.id) {
       console.error('节点ID不能为空');
-      alert('节点ID不能为空，无法保存');
+      const message = '节点ID不能为空，无法保存';
+      if (options?.showError !== false) {
+        alert(message);
+      }
+      reject?.(new Error(message));
       return;
     }
 
@@ -397,13 +405,8 @@ const handleNodeEditSave = async (nodeData) => {
     const response = await updateNode(updateData);
     console.log('API响应:', response);
 
-    // 关闭面板
-    handleNodeEditClose();
-
-    // 刷新图谱数据以显示更新
-    await refreshKnowledgeGraph();
-
     console.log('节点更新成功');
+    resolve?.(response);
   } catch (error) {
     console.error('节点更新失败:', error);
     console.error('错误详情:', error.response?.data || error.message);
@@ -415,7 +418,10 @@ const handleNodeEditSave = async (nodeData) => {
       errorMessage = `节点更新失败: ${error.message}`;
     }
 
-    alert(errorMessage);
+    if (options?.showError !== false) {
+      alert(errorMessage);
+    }
+    reject?.(new Error(errorMessage));
   }
 };
 

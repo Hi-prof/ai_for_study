@@ -3,41 +3,53 @@
     <div class="panel-header">
       <input type="text" v-model="title" class="title-editor" placeholder="知识点标题" />
       <div class="panel-actions">
-        <button class="action-button" @click="saveChanges">保存</button>
+        <button
+          v-if="isStructuredContent"
+          class="generate-deep-card-button header-ai-button"
+          @click="optimizeKnowledgeCard"
+          :disabled="isOptimizingCard"
+        >
+          {{ isOptimizingCard ? '优化中...' : hasOptimizedCard ? '重新AI优化' : 'AI优化卡片' }}
+        </button>
         <button class="close-button" @click="close">×</button>
       </div>
     </div>
     <div class="panel-content">
       <div v-if="isStructuredContent" class="agent-card-section">
-        <div class="content-header knowledge-card-header">
-          <div class="card-title-group">
-            <h4>知识卡片</h4>
-            <p class="card-helper-text">一个节点只保留一张卡片，AI 优化会直接补充到当前卡片里。</p>
-          </div>
-          <div class="header-right">
+        <div class="knowledge-card-toolbar">
+          <div class="knowledge-card-meta">
+            <span class="save-status compact" :class="saveStatusClass">{{ saveStatusText }}</span>
             <span v-if="structuredNode.isFocus" class="focus-badge">重点节点</span>
-            <button
-              class="generate-deep-card-button"
-              @click="optimizeKnowledgeCard"
-              :disabled="isOptimizingCard"
-            >
-              {{ isOptimizingCard ? '优化中...' : hasOptimizedCard ? '重新AI优化' : 'AI优化卡片' }}
-            </button>
           </div>
         </div>
-        <div v-if="knowledgeCardItems.length > 0" class="card-block unified-card-block">
-          <div v-for="item in knowledgeCardItems" :key="item.label" class="card-item">
-            <div class="card-item-label">{{ item.label }}</div>
-            <div class="card-item-value">{{ item.value }}</div>
+        <div v-if="structuredCardFields.length > 0" class="knowledge-card-frame">
+          <div v-for="field in structuredCardFields" :key="field.key" class="card-field">
+            <label class="card-item-label" :for="field.key">{{ field.label }}</label>
+            <input
+              v-if="field.inputType === 'input'"
+              :id="field.key"
+              class="card-field-input"
+              type="text"
+              :value="field.value"
+              @input="updateStructuredField(field, ($event.target as HTMLInputElement).value)"
+            />
+            <textarea
+              v-else
+              :id="field.key"
+              class="card-field-input card-field-textarea"
+              :rows="field.rows"
+              :value="field.value"
+              @input="updateStructuredField(field, ($event.target as HTMLTextAreaElement).value)"
+            ></textarea>
           </div>
         </div>
-        <div v-else class="empty-card-state">当前节点暂无可展示的知识卡片内容。</div>
+        <div v-else class="empty-card-state">暂无卡片内容</div>
       </div>
 
       <div v-else class="node-content">
-        <div class="content-header">
-          <h4>知识卡片</h4>
+        <div class="content-header plain-content-toolbar">
           <div class="header-right">
+            <span class="save-status compact" :class="saveStatusClass">{{ saveStatusText }}</span>
             <span class="char-count" :class="{ 'over-limit': contentLength > 400 }">
               {{ contentLength }}/400字
             </span>
@@ -49,8 +61,7 @@
         <textarea 
           v-model="content" 
           class="content-editor"
-          :readonly="isStructuredContent"
-          :placeholder="isStructuredContent ? '该节点内容由智能体结构化生成，请在上方查看卡片详情。' : '请输入知识点内容...'"
+          placeholder="请输入知识点内容..."
         ></textarea>
         <div v-if="isSearching" class="search-loading">
           <div class="loading-spinner search-spinner"></div>
@@ -126,7 +137,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, watch, computed, onMounted } from 'vue';
+import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useChapterFileUpload } from '@/composables/useChapterFileUpload';
 import { generateKnowledgeAgentDeepCard } from '@/api/graph';
 
@@ -144,6 +155,21 @@ interface RelatedNode {
   text: string;
   relationType?: string;
   content?: string;
+}
+
+interface SaveOptions {
+  refreshGraph?: boolean;
+  showError?: boolean;
+}
+
+interface StructuredCardField {
+  key: string;
+  label: string;
+  section: 'lightweightCard' | 'deepCard';
+  property: string;
+  inputType: 'input' | 'textarea';
+  rows: number;
+  isList?: boolean;
 }
 
 // Define props
@@ -177,6 +203,18 @@ const resources = ref<any[]>([]);
 const contentLength = ref(0);
 const fileInput = ref<HTMLInputElement | null>(null);
 const isOptimizingCard = ref(false);
+const isSaving = ref(false);
+const saveState = ref<'idle' | 'saving' | 'saved' | 'error'>('saved');
+const saveErrorMessage = ref('');
+const hasPersistedChanges = ref(false);
+const isHydratingNode = ref(false);
+const lastSavedSnapshot = ref('');
+const initialSnapshot = ref('');
+const currentNodeKey = ref('');
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let activeSavePromise: Promise<boolean> | null = null;
+
+const AUTO_SAVE_DELAY = 800;
 
 // 计算属性 - 当前节点的文件列表
 const nodeFiles = computed(() => {
@@ -211,44 +249,203 @@ const joinList = (value: unknown) => {
   return value.map(item => String(item)).filter(Boolean).join('、');
 };
 
-const buildDisplayItems = (items: Array<[string, string]>) => {
-  return items
-    .filter(([, value]) => value && String(value).trim())
-    .map(([label, value]) => ({ label, value }));
-};
-
-const knowledgeCardItems = computed(() => {
-  const lightCard = structuredNode.value?.lightweightCard || null;
-  const deepCard = structuredNode.value?.deepCard || null;
-
-  if (!lightCard && !deepCard) {
+const splitList = (value: string) => {
+  if (!value) {
     return [];
   }
 
-  return buildDisplayItems([
-    ['定义', lightCard?.definition || ''],
-    ['关键词', joinList(lightCard?.keywords)],
-    ['示例', lightCard?.example || ''],
-    ['关联知识', joinList(lightCard?.relatedKnowledge)],
-    ['深入解析', deepCard?.detailedDefinition || ''],
-    ['核心特征', joinList(deepCard?.coreFeatures)],
-    ['应用场景', joinList(deepCard?.applicationScenarios)],
-    ['常见问题', joinList(deepCard?.commonQuestions)],
-    ['关联说明', deepCard?.relatedExplanation || ''],
-    ['参考内容', joinList(deepCard?.references)]
-  ]);
-});
+  return value
+    .split(/[\n,，、;；]+/)
+    .map(item => item.trim())
+    .filter(Boolean);
+};
+
+const structuredCardFieldDefinitions: StructuredCardField[] = [
+  { key: 'definition', label: '定义', section: 'lightweightCard', property: 'definition', inputType: 'textarea', rows: 3 },
+  { key: 'keywords', label: '关键词', section: 'lightweightCard', property: 'keywords', inputType: 'input', rows: 1, isList: true },
+  { key: 'example', label: '示例', section: 'lightweightCard', property: 'example', inputType: 'textarea', rows: 3 },
+  { key: 'relatedKnowledge', label: '关联知识', section: 'lightweightCard', property: 'relatedKnowledge', inputType: 'input', rows: 1, isList: true },
+  { key: 'detailedDefinition', label: '深入解析', section: 'deepCard', property: 'detailedDefinition', inputType: 'textarea', rows: 4 },
+  { key: 'coreFeatures', label: '核心特征', section: 'deepCard', property: 'coreFeatures', inputType: 'input', rows: 1, isList: true },
+  { key: 'applicationScenarios', label: '应用场景', section: 'deepCard', property: 'applicationScenarios', inputType: 'input', rows: 1, isList: true },
+  { key: 'commonQuestions', label: '常见问题', section: 'deepCard', property: 'commonQuestions', inputType: 'textarea', rows: 3, isList: true },
+  { key: 'relatedExplanation', label: '关联说明', section: 'deepCard', property: 'relatedExplanation', inputType: 'textarea', rows: 3 },
+  { key: 'references', label: '参考内容', section: 'deepCard', property: 'references', inputType: 'textarea', rows: 3, isList: true }
+];
 
 const hasOptimizedCard = computed(() => !!structuredNode.value?.deepCard);
+const structuredCardFields = computed(() => {
+  const currentStructuredNode = structuredNode.value;
+  if (!currentStructuredNode) {
+    return [];
+  }
+
+  const hasDeepSection = !!currentStructuredNode.deepCard;
+
+  return structuredCardFieldDefinitions
+    .filter(field => field.section === 'lightweightCard' || hasDeepSection)
+    .map(field => {
+      const sectionValue = currentStructuredNode[field.section] || {};
+      const rawValue = sectionValue[field.property];
+      return {
+        ...field,
+        value: field.isList ? joinList(rawValue) : String(rawValue || '')
+      };
+    });
+});
+
+const normalizedStructuredContent = computed(() => {
+  if (!isStructuredContent.value || !structuredNode.value) {
+    return rawContent.value;
+  }
+
+  return JSON.stringify({
+    ...structuredNode.value,
+    title: title.value || structuredNode.value.title || props.node.text || props.node.name || '',
+  });
+});
+const currentSaveData = computed(() => ({
+  id: props.node.id,
+  text: title.value,
+  content: isStructuredContent.value ? normalizedStructuredContent.value : content.value,
+}));
+const currentSnapshot = computed(() => JSON.stringify(currentSaveData.value));
+const saveStatusText = computed(() => {
+  if (saveState.value === 'saving') {
+    return '自动保存中...';
+  }
+  if (saveState.value === 'error') {
+    return saveErrorMessage.value || '自动保存失败';
+  }
+  if (saveState.value === 'idle') {
+    return '等待自动保存...';
+  }
+  return '已自动保存';
+});
+const saveStatusClass = computed(() => ({
+  idle: saveState.value === 'idle',
+  saving: saveState.value === 'saving',
+  error: saveState.value === 'error',
+  saved: saveState.value === 'saved',
+}));
+
+const updateStructuredField = (field: StructuredCardField, nextValue: string) => {
+  const currentStructuredNode = structuredNode.value;
+  if (!currentStructuredNode) {
+    return;
+  }
+
+  const nextStructuredNode = {
+    ...currentStructuredNode,
+    [field.section]: {
+      ...(currentStructuredNode[field.section] || {}),
+      [field.property]: field.isList ? splitList(nextValue) : nextValue
+    }
+  };
+
+  rawContent.value = JSON.stringify(nextStructuredNode);
+};
+
+const clearAutoSaveTimer = () => {
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = null;
+  }
+};
+
+const resetSaveState = () => {
+  clearAutoSaveTimer();
+  saveErrorMessage.value = '';
+  saveState.value = 'saved';
+  hasPersistedChanges.value = false;
+  lastSavedSnapshot.value = currentSnapshot.value;
+  initialSnapshot.value = currentSnapshot.value;
+};
+
+const emitSaveRequest = (saveData: { id: string | number; text: string; content: string }, options: SaveOptions = {}) => {
+  return new Promise<void>((resolve, reject) => {
+    emit('save', saveData, resolve, reject, options);
+  });
+};
+
+const runSave = async (options: SaveOptions = {}) => {
+  const snapshot = currentSnapshot.value;
+  if (snapshot === lastSavedSnapshot.value) {
+    saveState.value = 'saved';
+    saveErrorMessage.value = '';
+    return false;
+  }
+
+  isSaving.value = true;
+  saveState.value = 'saving';
+  saveErrorMessage.value = '';
+
+  try {
+    await emitSaveRequest(currentSaveData.value, options);
+    lastSavedSnapshot.value = snapshot;
+    hasPersistedChanges.value = snapshot !== initialSnapshot.value;
+    saveState.value = 'saved';
+    return true;
+  } catch (error: any) {
+    saveState.value = 'error';
+    saveErrorMessage.value = error?.message || '自动保存失败';
+    throw error;
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+const flushPendingSave = async (options: SaveOptions = {}) => {
+  clearAutoSaveTimer();
+  let didSave = false;
+
+  while (true) {
+    if (activeSavePromise) {
+      didSave = (await activeSavePromise) || didSave;
+      continue;
+    }
+
+    if (currentSnapshot.value === lastSavedSnapshot.value) {
+      return didSave;
+    }
+
+    activeSavePromise = runSave(options).finally(() => {
+      activeSavePromise = null;
+    });
+    didSave = (await activeSavePromise) || didSave;
+  }
+};
+
+const scheduleAutoSave = () => {
+  if (isHydratingNode.value || currentSnapshot.value === lastSavedSnapshot.value) {
+    return;
+  }
+
+  clearAutoSaveTimer();
+  autoSaveTimer = setTimeout(() => {
+    flushPendingSave({ refreshGraph: false, showError: false }).catch(() => {
+      // 自动保存失败时通过状态提示，不重复弹窗轰炸用户
+    });
+  }, AUTO_SAVE_DELAY);
+};
 
 // Watch for changes in the node prop
 watch(() => props.node, (newNode) => {
   if (newNode) {
+    const nextNodeKey = `${newNode.id ?? ''}-${newNode.content ?? ''}-${newNode.name ?? newNode.text ?? ''}`;
+    if (nextNodeKey === currentNodeKey.value) {
+      return;
+    }
+
+    isHydratingNode.value = true;
+    currentNodeKey.value = nextNodeKey;
     title.value = newNode.name || '';
     rawContent.value = newNode.content || '';
     content.value = isStructuredContent.value ? '' : rawContent.value;
     resources.value = newNode.resources || [];
     imageResult.value = null; // Reset image result on node change
+    resetSaveState();
+    isHydratingNode.value = false;
 
     // 加载节点文件
     if (props.courseId) {
@@ -269,22 +466,23 @@ watch(() => content.value, (newContent) => {
   contentLength.value = newContent.length;
 }, { immediate: true });
 
-// Methods
-const saveChanges = () => {
-  console.log('NodeDetailPanel saveChanges 被调用');
-  console.log('当前节点数据:', props.node);
-  console.log('标题:', title.value);
-  console.log('内容:', content.value);
+watch(currentSnapshot, (newSnapshot, oldSnapshot) => {
+  if (isHydratingNode.value || !props.node?.id || newSnapshot === oldSnapshot) {
+    return;
+  }
 
-  const saveData = {
-    id: props.node.id,
-    text: title.value,
-    content: isStructuredContent.value ? rawContent.value : content.value,
-  };
+  if (newSnapshot === lastSavedSnapshot.value) {
+    clearAutoSaveTimer();
+    saveState.value = 'saved';
+    saveErrorMessage.value = '';
+    return;
+  }
 
-  console.log('准备发送的保存数据:', saveData);
-  emit('save', saveData);
-};
+  if (saveState.value !== 'saving') {
+    saveState.value = 'idle';
+  }
+  scheduleAutoSave();
+});
 
 const buildOptimizationSourceText = () => {
   const structured = structuredNode.value;
@@ -338,6 +536,7 @@ const optimizeKnowledgeCard = async () => {
 
     rawContent.value = JSON.stringify(updatedNode);
     content.value = '';
+    await flushPendingSave({ refreshGraph: false, showError: false });
   } catch (error: any) {
     alert(error?.message || 'AI 优化卡片失败');
   } finally {
@@ -345,8 +544,13 @@ const optimizeKnowledgeCard = async () => {
   }
 };
 
-const close = () => {
-  emit('close');
+const close = async () => {
+  try {
+    await flushPendingSave({ refreshGraph: false, showError: false });
+    emit('close', { refreshGraph: hasPersistedChanges.value });
+  } catch (error: any) {
+    alert(error?.message || '自动保存失败，请稍后重试');
+  }
 };
 
 
@@ -537,6 +741,10 @@ onMounted(() => {
     loadCourseFiles(props.courseId);
   }
 });
+
+onBeforeUnmount(() => {
+  clearAutoSaveTimer();
+});
 </script>
 
 <style scoped>
@@ -550,20 +758,46 @@ onMounted(() => {
   background: #f8fbff;
 }
 
-.knowledge-card-header {
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.card-title-group {
-  min-width: 0;
-}
-
-.card-helper-text {
-  margin: 6px 0 0;
-  color: #64748b;
+.save-status {
+  min-width: 96px;
   font-size: 12px;
-  line-height: 1.6;
+  font-weight: 600;
+  text-align: right;
+  color: #64748b;
+}
+
+.save-status.compact {
+  min-width: auto;
+  text-align: left;
+}
+
+.save-status.idle,
+.save-status.saving {
+  color: #2563eb;
+}
+
+.save-status.saved {
+  color: #16a34a;
+}
+
+.save-status.error {
+  color: #dc2626;
+}
+
+.knowledge-card-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.knowledge-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.plain-content-toolbar {
+  justify-content: flex-end;
 }
 
 .focus-badge {
@@ -579,10 +813,6 @@ onMounted(() => {
 
 .card-block + .card-block {
   margin-top: 16px;
-}
-
-.unified-card-block {
-  padding-top: 12px;
 }
 
 .generate-deep-card-button {
@@ -601,21 +831,57 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
-.card-item + .card-item {
-  margin-top: 10px;
+.header-ai-button {
+  white-space: nowrap;
+}
+
+.knowledge-card-frame {
+  border: 1px solid #dbe7f5;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.card-field {
+  padding: 14px 16px;
+  transition: background-color 0.2s ease;
+}
+
+.card-field + .card-field {
+  border-top: 1px solid #e2e8f0;
+}
+
+.card-field:focus-within {
+  background: #f8fbff;
 }
 
 .card-item-label {
-  margin-bottom: 4px;
+  display: block;
+  margin-bottom: 6px;
   color: #475569;
   font-size: 12px;
   font-weight: 600;
 }
 
-.card-item-value {
+.card-field-input {
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
   color: #1e293b;
-  line-height: 1.7;
-  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.6;
+  transition: color 0.2s ease;
+}
+
+.card-field-input:focus {
+  outline: none;
+}
+
+.card-field-textarea {
+  resize: vertical;
+  min-height: 92px;
 }
 
 .empty-card-state {
