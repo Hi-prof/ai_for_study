@@ -1,63 +1,23 @@
 <template>
-  <main class="teacher-course-workspace">
-    <header class="teacher-course-workspace__topbar">
-      <div class="teacher-course-workspace__brand-group">
-        <button
-          type="button"
-          class="teacher-course-workspace__return-button"
-          @click="handleBackToCourses"
-        >
-          <WorkspaceIcon name="arrowLeft" :size="16" />
-          <span>返回课程列表</span>
-        </button>
-
-        <div class="teacher-course-workspace__brand" aria-label="八闽慧教教师课程工作台">
-          <span class="teacher-course-workspace__brand-copy">
-            <strong>八闽慧教</strong>
-            <small>教师课程工作台</small>
-          </span>
-        </div>
-      </div>
-
-      <div class="teacher-course-workspace__user teacher-course-workspace__user--text-only">
-        <span class="teacher-course-workspace__user-copy">
-          <strong>{{ currentUserDisplayName }}</strong>
-          <small>教师端</small>
-        </span>
-      </div>
-    </header>
-
-    <div class="teacher-course-workspace__shell">
-      <aside class="teacher-course-workspace__sidebar" aria-label="课程工作台导航">
-        <div class="teacher-course-workspace__sidebar-header">
-          <h1>{{ courseInfo.title }}</h1>
-        </div>
-
-        <nav class="teacher-course-workspace__nav">
-          <button
-            v-for="tab in menuTabs"
-            :key="tab.key"
-            type="button"
-            class="teacher-course-workspace__nav-item"
-            :class="{ 'is-active': activeTab === tab.key }"
-            :aria-current="activeTab === tab.key ? 'page' : undefined"
-            @click="switchTab(tab.key)"
-          >
-            <span class="teacher-course-workspace__nav-icon">
-              <WorkspaceIcon :name="tab.icon" :size="18" />
-            </span>
-            <span class="teacher-course-workspace__nav-label">{{ tab.label }}</span>
-          </button>
-        </nav>
-      </aside>
-
-      <section id="teacher-course-panel" class="teacher-course-workspace__panel">
-        <div class="teacher-course-workspace__panel-body">
-          <component :is="activeView" :course-id="courseId" />
-        </div>
-      </section>
+  <WorkspaceScaffold
+    tone="teacher"
+    title="八闽慧教"
+    subtitle="教师课程工作台"
+    :sidebar-title="courseInfo.title"
+    :sidebar-description="courseInfo.description"
+    role-label="教师端"
+    :user-name="currentUserDisplayName"
+    :tabs="menuTabs"
+    :active-tab="activeTab"
+    back-label="返回课程列表"
+    nav-aria-label="课程工作台导航"
+    @back="handleBackToCourses"
+    @change-tab="switchTab"
+  >
+    <div class="teacher-course-workspace__panel-body">
+      <component :is="activeView" :course-id="courseId" />
     </div>
-  </main>
+  </WorkspaceScaffold>
 </template>
 
 <script setup>
@@ -70,7 +30,7 @@ import {
   defaultTeacherCourseWorkspaceTab,
   teacherCourseWorkspaceTabs
 } from '@/constants/courseWorkspace';
-import WorkspaceIcon from '@/ui/workspace/WorkspaceIcon.vue';
+import WorkspaceScaffold from '@/ui/workspace/WorkspaceScaffold.vue';
 
 import CourseChapters from './chapter/CourseChapters.vue';
 import CourseKnowledgeGraph from './knowledgegraph/CourseKnowledgeGraph.vue';
