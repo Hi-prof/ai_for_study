@@ -1,4 +1,4 @@
-import TeacherCourseDetail from '@/teacher/components/modules/TeacherCourseDetail/TeacherCourseDetail.vue';
+import TeacherCoursePage from '@/teacher/course/TeacherCoursePage.vue';
 
 export const teacherRoutes = [
   {
@@ -11,7 +11,7 @@ export const teacherRoutes = [
   {
     path: '/teacher/my',
     name: 'teacher-my',
-    component: () => import('@/teacher/pages/Teacher_Mypage.vue'),
+    component: () => import('@/teacher/home/TeacherHomePage.vue'),
     meta: { title: '教师个人中心', requiresAuth: true, role: 'teacher' }
   },
   {
@@ -23,13 +23,13 @@ export const teacherRoutes = [
   {
     path: '/teacher/class/:id',
     name: 'teacher-class-detail',
-    component: () => import('@/teacher/pages/Teacher_Mypage.vue'),
+    component: () => import('@/teacher/home/TeacherHomePage.vue'),
     meta: { title: '班级详情', requiresAuth: true, role: 'teacher' }
   },
   {
     path: '/teacher/course/:courseId',
     name: 'teacher-course-detail',
-    component: TeacherCourseDetail,
+    component: TeacherCoursePage,
     meta: { title: '课程详情', requiresAuth: true, role: 'teacher' },
     props: true
   },
