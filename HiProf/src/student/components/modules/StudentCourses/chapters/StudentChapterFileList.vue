@@ -88,9 +88,9 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
-import { useChapterFileUpload } from '@/composables/useChapterFileUpload';
+import { useChapterFileUpload } from '@/shared/composables/useChapterFileUpload';
 import { parseChapterFileName } from '@/utils/chapterFileNaming';
-import { useOfficePreview } from '@/composables/useOfficePreview';
+import { useOfficePreview } from '@/shared/composables/useOfficePreview';
 import { isPreviewSupported as isOfficeFileSupported } from '@/utils/fileViewerUtils';
 import FilePreviewDialog from '@/ui/common/office-preview/FilePreviewDialog.vue';
 

@@ -5,7 +5,7 @@
 </template>
 
 <script setup>
-import GraphList from '@/ui/graph/GraphList.vue';
+import GraphList from '@/shared/features/graph/components/graph/GraphList.vue';
 
 defineEmits(['select-graph']);
 </script>

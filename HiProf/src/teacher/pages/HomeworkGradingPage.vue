@@ -31,7 +31,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getCourseById } from '@/api/courses';
-import HomeworkSubmissions from '@/teacher/components/modules/TeacherCourseDetail/homework/HomeworkSubmissions.vue';
+import HomeworkSubmissions from '@/teacher/pages/HomeworkSubmissions.vue';
 
 const route = useRoute();
 const router = useRouter();

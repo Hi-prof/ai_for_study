@@ -66,7 +66,7 @@ import { useRoute } from 'vue-router';
 
 import { getCurrentUser } from '@/api/auth';
 import { studentWorkspaceTabs } from '@/constants/workspace';
-import { useWorkspacePage } from '@/composables/useWorkspacePage';
+import { useWorkspacePage } from '@/shared/composables/useWorkspacePage';
 import StudentAIAssistant from '@/student/components/modules/StudentAIAssistant/StudentAIAssistant.vue';
 import StudentCourses from '@/student/components/modules/StudentCourses/StudentCourses.vue';
 import StudentSettings from '@/student/components/modules/StudentSettings/StudentSettings.vue';
