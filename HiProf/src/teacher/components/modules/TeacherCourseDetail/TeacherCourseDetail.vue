@@ -1,29 +1,25 @@
 <template>
   <main class="teacher-course-workspace">
     <header class="teacher-course-workspace__topbar">
-      <button
-        type="button"
-        class="teacher-course-workspace__brand"
-        @click="handleBackToCourses"
-      >
-        <span class="teacher-course-workspace__brand-mark">八</span>
-        <span class="teacher-course-workspace__brand-copy">
-          <strong>八闽慧教</strong>
-          <small>返回课程列表</small>
-        </span>
-      </button>
-
-      <div class="teacher-course-workspace__user">
-        <span
-          v-if="currentUser.avatar"
-          class="teacher-course-workspace__avatar teacher-course-workspace__avatar--image"
+      <div class="teacher-course-workspace__brand-group">
+        <button
+          type="button"
+          class="teacher-course-workspace__return-button"
+          @click="handleBackToCourses"
         >
-          <img :src="currentUser.avatar" :alt="currentUserDisplayName" />
-        </span>
-        <span v-else class="teacher-course-workspace__avatar">
-          {{ currentUserInitial }}
-        </span>
+          <WorkspaceIcon name="arrowLeft" :size="16" />
+          <span>返回课程列表</span>
+        </button>
 
+        <div class="teacher-course-workspace__brand" aria-label="八闽慧教教师课程工作台">
+          <span class="teacher-course-workspace__brand-copy">
+            <strong>八闽慧教</strong>
+            <small>教师课程工作台</small>
+          </span>
+        </div>
+      </div>
+
+      <div class="teacher-course-workspace__user teacher-course-workspace__user--text-only">
         <span class="teacher-course-workspace__user-copy">
           <strong>{{ currentUserDisplayName }}</strong>
           <small>教师端</small>
@@ -35,13 +31,6 @@
       <aside class="teacher-course-workspace__sidebar" aria-label="课程工作台导航">
         <div class="teacher-course-workspace__sidebar-header">
           <h1>{{ courseInfo.title }}</h1>
-          <button
-            type="button"
-            class="teacher-course-workspace__backlink"
-            @click="handleBackToCourses"
-          >
-            返回课程列表
-          </button>
         </div>
 
         <nav class="teacher-course-workspace__nav">
@@ -127,10 +116,6 @@ const menuTabs = teacherCourseWorkspaceTabs.map(tab => ({
 
 const currentUserDisplayName = computed(() => {
   return currentUser.value.name || currentUser.value.username || '教师';
-});
-
-const currentUserInitial = computed(() => {
-  return currentUserDisplayName.value.charAt(0).toUpperCase();
 });
 
 const courseInfo = ref({

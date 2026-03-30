@@ -19,8 +19,8 @@
 
     <repositories>
         <repository>
-            <id>mavenCentral</id>
-            <url>https://repo1.maven.org/maven2/</url>
+            <id>maven-central-direct</id>
+            <url>https://repo.maven.apache.org/maven2</url>
         </repository>
     </repositories>
 
