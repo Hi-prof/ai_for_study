@@ -9,13 +9,13 @@ export const studentRoutes = [
       {
         path: 'my',
         name: 'student-my',
-        component: () => import('@/student/pages/Student_Mypage.vue'),
+        component: () => import('@/student/home/StudentHomePage.vue'),
         meta: { title: '学生个人中心' }
       },
       {
         path: 'course/:courseId',
         name: 'student-course-detail',
-        component: () => import('@/student/components/modules/StudentCourses/StudentCourseDetail.vue'),
+        component: () => import('@/student/course/StudentCoursePage.vue'),
         meta: { title: '课程详情' }
       },
       {
