@@ -639,6 +639,71 @@ export const generateKnowledgeGraphAndPersist = (payload, signal) => {
   });
 };
 
+export const createKnowledgeGraphGenerationTask = (payload, signal) => {
+  return request({
+    url: '/core/zstp/agent/tasks',
+    method: 'post',
+    data: payload,
+    signal
+  }).then(response => {
+    ensureSuccessfulResponse(response, '提交知识图谱生成任务失败');
+    return response;
+  }).catch(error => {
+    console.error('提交知识图谱生成任务失败:', error);
+    return Promise.reject(error);
+  });
+};
+
+export const parseKnowledgeGraphSourceFile = (file, signal) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return request({
+    url: '/core/zstp/agent/sources/parse',
+    method: 'post',
+    data: formData,
+    signal,
+    timeout: 300000,
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  }).then(response => {
+    ensureSuccessfulResponse(response, '解析知识图谱资料失败');
+    return response;
+  }).catch(error => {
+    console.error('解析知识图谱资料失败:', error);
+    return Promise.reject(error);
+  });
+};
+
+export const getKnowledgeGraphGenerationTask = (taskId, signal) => {
+  return request({
+    url: `/core/zstp/agent/tasks/${taskId}`,
+    method: 'get',
+    signal
+  }).then(response => {
+    ensureSuccessfulResponse(response, '查询知识图谱生成任务失败');
+    return response;
+  }).catch(error => {
+    console.error('查询知识图谱生成任务失败:', error);
+    return Promise.reject(error);
+  });
+};
+
+export const persistKnowledgeGraphGenerationTask = (taskId, signal) => {
+  return request({
+    url: `/core/zstp/agent/tasks/${taskId}/persist`,
+    method: 'post',
+    signal
+  }).then(response => {
+    ensureSuccessfulResponse(response, '保存知识图谱生成结果失败');
+    return response;
+  }).catch(error => {
+    console.error('保存知识图谱生成结果失败:', error);
+    return Promise.reject(error);
+  });
+};
+
 export const generateKnowledgeAgentDeepCard = (payload) => {
   return request({
     url: '/core/zstp/agent/deep-card',

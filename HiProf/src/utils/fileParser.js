@@ -1,27 +1,13 @@
 /**
  * 文件解析工具模块
- * 支持解析 .txt、.pdf、.docx、.doc 等格式的文件
+ * 支持解析 .txt、.pdf、.docx、.pptx 格式的文件
  */
 
 import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 
 // 动态导入，避免构建时的问题
-let docxLib = null;
 let JSZip = null;
 let pdfjsLib = null;
-
-// 延迟加载DOCX解析库
-async function loadDocxParser() {
-  if (!docxLib) {
-    try {
-      docxLib = await import('docx');
-    } catch (error) {
-      console.error('Word文档解析库加载失败:', error);
-      throw new Error('Word文档解析功能不可用，请联系管理员');
-    }
-  }
-  return docxLib;
-}
 
 // 延迟加载JSZip库
 async function loadJSZip() {
@@ -60,11 +46,9 @@ export const FILE_CONFIG = {
     'text/plain',
     'application/pdf',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-    'application/msword', // .doc
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
-    'application/vnd.ms-powerpoint' // .ppt
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation' // .pptx
   ],
-  ALLOWED_EXTENSIONS: ['.txt', '.pdf', '.docx', '.doc', '.pptx', '.ppt']
+  ALLOWED_EXTENSIONS: ['.txt', '.pdf', '.docx', '.pptx']
 };
 
 /**
@@ -204,60 +188,45 @@ async function parsePdfFile(file) {
  */
 async function parseDocxFile(file) {
   try {
-    // 对于.docx文件，我们暂时使用简化的方法
-    // 因为docx库在浏览器环境中可能有兼容性问题
-
-    // 先尝试作为zip文件读取（.docx本质上是zip格式）
+    const JSZipLib = await loadJSZip();
     const arrayBuffer = await file.arrayBuffer();
+    const zip = new JSZipLib();
+    const zipContent = await zip.loadAsync(arrayBuffer);
+    const xmlFiles = [];
 
-    // 简化处理：尝试以文本方式读取并清理
-    const text = await parseTextFile(file);
+    zipContent.forEach((relativePath, zipEntry) => {
+      if (
+        relativePath === 'word/document.xml' ||
+        /^word\/(header|footer|footnotes|endnotes|comments)\d*\.xml$/.test(relativePath)
+      ) {
+        xmlFiles.push({ path: relativePath, file: zipEntry });
+      }
+    });
 
-    // 基本的文本清理
-    const cleanedText = text
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '') // 移除控制字符
-      .replace(/[^\x20-\x7E\u4e00-\u9fa5\u3000-\u303F\uFF00-\uFFEF\s]/g, '') // 保留ASCII、中文和空白字符
-      .replace(/\s+/g, ' ') // 合并多个空白字符
-      .trim();
+    xmlFiles.sort((a, b) => {
+      if (a.path === 'word/document.xml') return -1;
+      if (b.path === 'word/document.xml') return 1;
+      return a.path.localeCompare(b.path);
+    });
 
+    const textParts = [];
+    for (const xmlFile of xmlFiles) {
+      const xmlContent = await xmlFile.file.async('text');
+      const extractedText = extractTextFromWordXml(xmlContent);
+      if (extractedText) {
+        textParts.push(extractedText);
+      }
+    }
+
+    const cleanedText = cleanupOfficeText(textParts.join('\n\n'));
     if (!cleanedText || cleanedText.length < 10) {
-      throw new Error('Word文档解析失败，建议将文档另存为.txt格式后重新上传');
+      throw new Error('Word文档中没有可提取的文本内容');
     }
 
     return cleanedText;
   } catch (error) {
     console.error('Word文档解析失败:', error);
-    throw new Error('Word文档解析失败，建议将文档另存为.txt格式后重新上传');
-  }
-}
-
-/**
- * 解析.doc文件（旧版Word格式）
- * 注意：.doc格式比较复杂，这里提供基础的文本读取
- * @param {File} file - .doc文件对象
- * @returns {Promise<string>} 提取的文本内容
- */
-async function parseDocFile(file) {
-  try {
-    // 对于.doc文件，我们尝试以文本方式读取
-    // 这可能会包含一些乱码，但能提取出部分可读文本
-    const text = await parseTextFile(file);
-
-    // 简单的文本清理，移除一些常见的乱码字符
-    const cleanedText = text
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '') // 移除控制字符
-      .replace(/[^\x20-\x7E\u4e00-\u9fa5\u3000-\u303F\uFF00-\uFFEF]/g, '') // 保留ASCII和中文字符
-      .replace(/\s+/g, ' ') // 合并多个空白字符
-      .trim();
-
-    if (!cleanedText || cleanedText.length < 10) {
-      throw new Error('.doc文件格式较旧，建议转换为.docx格式后重新上传');
-    }
-
-    return cleanedText;
-  } catch (error) {
-    console.error('.doc文件解析失败:', error);
-    throw new Error('.doc文件格式较旧，解析可能不完整。建议转换为.docx格式后重新上传');
+    throw new Error('Word文档解析失败，请确认文件为未损坏的 .docx 文档');
   }
 }
 
@@ -321,6 +290,42 @@ async function parsePptxFile(file) {
     console.error('PowerPoint解析失败:', error);
     throw new Error(`PowerPoint文件解析失败，建议您：\n1. 在PowerPoint中打开文件\n2. 选择"文件" > "另存为"\n3. 选择"纯文本(*.txt)"格式保存\n4. 重新上传txt文件`);
   }
+}
+
+function extractTextFromWordXml(xmlContent) {
+  let text = '';
+  const tokenPattern =
+    /<w:t[^>]*>([\s\S]*?)<\/w:t>|<w:tab\s*\/>|<w:br\s*\/>|<\/w:p>|<\/w:tc>/g;
+  let match;
+
+  while ((match = tokenPattern.exec(xmlContent)) !== null) {
+    const token = match[0];
+    if (match[1] !== undefined) {
+      text += decodeSimpleXMLEntities(match[1]);
+    } else if (token.startsWith('<w:tab')) {
+      text += '\t';
+    } else if (token.startsWith('<w:br') || token === '</w:p>') {
+      text += '\n';
+    } else if (token === '</w:tc>') {
+      text += '\t';
+    }
+  }
+
+  return cleanupOfficeText(text);
+}
+
+function cleanupOfficeText(text) {
+  return text
+    .replace(/\u0000/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim();
 }
 
 /**
@@ -463,33 +468,6 @@ function decodeSimpleXMLEntities(text) {
 }
 
 /**
- * 解析.ppt文件（旧版PowerPoint格式）
- * @param {File} file - .ppt文件对象
- * @returns {Promise<string>} 提取的文本内容
- */
-async function parsePptFile(file) {
-  try {
-    // 对于.ppt文件，尝试基本的文本提取
-    const text = await parseTextFile(file);
-
-    const cleanedText = text
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
-      .replace(/[^\x20-\x7E\u4e00-\u9fa5\u3000-\u303F\uFF00-\uFFEF\s]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    if (!cleanedText || cleanedText.length < 10) {
-      throw new Error('.ppt文件格式较旧，建议转换为.pptx格式后重新上传');
-    }
-
-    return cleanedText;
-  } catch (error) {
-    console.error('.ppt文件解析失败:', error);
-    throw new Error('.ppt文件格式较旧，解析可能不完整。建议转换为.pptx格式后重新上传');
-  }
-}
-
-/**
  * 根据文件类型解析文件内容
  * @param {File} file - 文件对象
  * @returns {Promise<string>} 解析后的文本内容
@@ -511,14 +489,8 @@ export async function parseFileContent(file) {
       case '.docx':
         return await parseDocxFile(file);
 
-      case '.doc':
-        return await parseDocFile(file);
-
       case '.pptx':
         return await parsePptxFile(file);
-
-      case '.ppt':
-        return await parsePptFile(file);
 
       default:
         throw new Error(`不支持的文件格式: ${fileExtension}`);
@@ -541,9 +513,7 @@ export function getFileTypeName(fileName) {
     '.txt': '文本文件',
     '.pdf': 'PDF文档',
     '.docx': 'Word文档',
-    '.doc': 'Word文档(旧版)',
-    '.pptx': 'PowerPoint演示文稿',
-    '.ppt': 'PowerPoint演示文稿(旧版)'
+    '.pptx': 'PowerPoint演示文稿'
   };
   
   return typeNames[extension] || '未知文件';

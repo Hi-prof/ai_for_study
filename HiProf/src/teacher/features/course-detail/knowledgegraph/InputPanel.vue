@@ -17,9 +17,9 @@
               <div class="file-upload-button" :class="{ 'uploading': isUploading }">
                 <i class="upload-icon" v-if="!isUploading"></i>
                 <i class="loading-icon" v-else></i>
-                <span>{{ isUploading ? '正在读取文件...' : '上传文档' }}</span>
+                <span>{{ isUploading ? '后端解析中...' : '上传文档' }}</span>
               </div>
-              <div class="upload-main-text">支持上传 PDF、DOC、DOCX、PPT、PPTX、TXT 文档，点击这里即可选择文件</div>
+              <div class="upload-main-text">支持上传 PDF、DOCX、PPTX、TXT 文档，点击这里即可选择文件</div>
               <div class="upload-support-text">可上传课程资料、讲义或知识点整理文档，单个文件最大 50MB。</div>
             </div>
           </div>
@@ -86,9 +86,17 @@
 
 <script setup>
 import { ref } from 'vue';
-import { FILE_CONFIG, parseFileContent, formatFileSize, getFileTypeName } from '@/utils/fileParser.js';
+import { parseKnowledgeGraphSourceFile } from '@/api/graph.js';
 
-const uploadAccept = FILE_CONFIG.ALLOWED_EXTENSIONS.join(',');
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const ALLOWED_EXTENSIONS = ['.txt', '.pdf', '.docx', '.pptx'];
+const FILE_TYPE_NAMES = {
+  '.txt': '文本文件',
+  '.pdf': 'PDF文档',
+  '.docx': 'Word文档',
+  '.pptx': 'PowerPoint演示文稿'
+};
+const uploadAccept = ALLOWED_EXTENSIONS.join(',');
 
 // 定义props和emits
 const props = defineProps({
@@ -109,6 +117,7 @@ const fileInput = ref(null);
 const isUploading = ref(false);
 const uploadedFileName = ref('');
 const uploadedFileContent = ref('');
+const uploadedParsedSource = ref(null);
 
 // 文件上传相关方法
 const triggerFileUpload = () => {
@@ -123,31 +132,27 @@ const handleFileUpload = async (event) => {
 
   const file = files[0];
 
-  const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
-  if (!FILE_CONFIG.ALLOWED_EXTENSIONS.includes(fileExtension)) {
-    alert(`当前支持上传 ${FILE_CONFIG.ALLOWED_EXTENSIONS.join('、')} 文件`);
-    if (fileInput.value) {
-      fileInput.value.value = '';
-    }
-    return;
-  }
-
   try {
+    validateSourceFile(file);
     isUploading.value = true;
-    const content = await parseFileContent(file);
+    const response = await parseKnowledgeGraphSourceFile(file);
+    const parsedSource = response?.data || response || {};
+    const content = parsedSource.text || '';
     if (!content.trim()) {
       throw new Error('文档内容为空或无法读取');
     }
 
     uploadedFileName.value = file.name;
     uploadedFileContent.value = content;
-    console.log(`PDF 解析成功: ${file.name} (${getFileTypeName(file.name)}, ${formatFileSize(file.size)})`);
+    uploadedParsedSource.value = parsedSource;
+    console.log(`后端解析成功: ${file.name} (${getFileTypeName(file.name)}, ${formatFileSize(file.size)})`);
 
   } catch (error) {
     console.error('文件上传失败:', error);
-    alert(`文件上传失败: ${error.message}`);
+    alert(`文件上传失败: ${resolveUploadErrorMessage(error)}`);
     uploadedFileName.value = '';
     uploadedFileContent.value = '';
+    uploadedParsedSource.value = null;
   } finally {
     isUploading.value = false;
     // 清空文件输入，允许重新选择同一文件
@@ -157,20 +162,57 @@ const handleFileUpload = async (event) => {
   }
 };
 
+const validateSourceFile = (file) => {
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`文件大小超过限制，最大支持 ${formatFileSize(MAX_FILE_SIZE)}`);
+  }
+
+  const extension = getFileExtension(file.name);
+  if (!ALLOWED_EXTENSIONS.includes(extension)) {
+    throw new Error(`不支持的文件类型: ${extension}。支持格式: ${ALLOWED_EXTENSIONS.join('、')}`);
+  }
+};
+
 const removeUploadedFile = () => {
   uploadedFileName.value = '';
   uploadedFileContent.value = '';
+  uploadedParsedSource.value = null;
+};
+
+const getFileExtension = (fileName) => `.${String(fileName).split('.').pop().toLowerCase()}`;
+
+const getFileTypeName = (fileName) => FILE_TYPE_NAMES[getFileExtension(fileName)] || '未知文件';
+
+const formatFileSize = (bytes) => {
+  if (!bytes) {
+    return '0 B';
+  }
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const size = bytes / Math.pow(1024, unitIndex);
+  return `${Number(size.toFixed(2))} ${units[unitIndex]}`;
+};
+
+const resolveUploadErrorMessage = (error) => {
+  return error?.businessResponse?.msg
+    || error?.businessResponse?.message
+    || error?.response?.data?.msg
+    || error?.response?.data?.message
+    || error?.message
+    || '后端解析失败';
 };
 
 const handleGenerate = () => {
   if (!props.modelValue.trim() && !uploadedFileContent.value) {
-    alert('请输入知识图谱内容描述或上传 PDF 文件');
+    alert('请输入知识图谱内容描述或上传文档');
     return;
   }
   emit('generate', {
     requirements: props.modelValue,
     sourceText: uploadedFileContent.value || props.modelValue,
-    pdfPaths: []
+    pdfPaths: [],
+    sourceName: uploadedFileName.value,
+    parsedSource: uploadedParsedSource.value
   });
 };
 

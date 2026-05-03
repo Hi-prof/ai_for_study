@@ -3,10 +3,11 @@ from __future__ import annotations
 import asyncio
 import json
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from .agent import knowledge_graph_agent
+from .document_parser import parse_document
 from .models import (
     CreateTaskResponse,
     DeepCardResponse,
@@ -28,6 +29,15 @@ def create_task(
     task_store.save(task)
     background_tasks.add_task(knowledge_graph_agent.run_task, task.taskId)
     return CreateTaskResponse(taskId=task.taskId, status=task.status, stage=task.stage)
+
+
+@router.post("/sources/parse")
+async def parse_source(file: UploadFile = File(...)) -> dict:
+    try:
+        content = await file.read()
+        return parse_document(file.filename or "uploaded-file", content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/deep-card", response_model=DeepCardResponse)

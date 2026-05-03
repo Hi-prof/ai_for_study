@@ -18,13 +18,47 @@ class LlmClient:
         if not self.enabled:
             raise RuntimeError("Remote LLM is not configured")
 
+        last_error: Exception | None = None
+        max_attempts = max(settings.llm_max_retries, 1)
+        for attempt in range(1, max_attempts + 1):
+            try:
+                return self._complete_json_once(
+                    system_prompt,
+                    user_prompt,
+                    model,
+                    temperature=0.3 if attempt == 1 else 0.1,
+                    retrying=attempt > 1,
+                )
+            except Exception as exc:
+                last_error = exc
+                if attempt >= max_attempts:
+                    break
+
+        raise RuntimeError(
+            f"Remote LLM request or JSON parsing failed after {max_attempts} attempts: {last_error}"
+        ) from last_error
+
+    def _complete_json_once(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str | None,
+        temperature: float,
+        retrying: bool,
+    ) -> dict:
+        retry_instruction = (
+            "\n\nThe previous response was not usable. Return one valid JSON object only, "
+            "with all required fields and no markdown fences."
+            if retrying
+            else ""
+        )
         payload = {
             "model": model or settings.card_model,
-            "temperature": 0.3,
+            "temperature": temperature,
             "response_format": {"type": "json_object"},
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
+                {"role": "user", "content": user_prompt + retry_instruction},
             ],
         }
         request = urllib.request.Request(
@@ -51,7 +85,10 @@ class LlmClient:
             raise RuntimeError(f"Remote LLM request failed: {exc}") from exc
 
         content = body["choices"][0]["message"]["content"]
-        return self._parse_json(content)
+        parsed = self._parse_json(content)
+        if not isinstance(parsed, dict):
+            raise RuntimeError("Remote LLM returned JSON that is not an object")
+        return parsed
 
     @staticmethod
     def _parse_json(content: str) -> dict:

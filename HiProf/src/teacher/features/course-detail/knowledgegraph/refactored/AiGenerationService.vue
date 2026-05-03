@@ -6,7 +6,14 @@
 
 <script setup>
 import { ref, defineEmits, defineExpose } from 'vue';
-import { generateKnowledgeGraphAndPersist } from '@/api/graph';
+import {
+  createKnowledgeGraphGenerationTask,
+  getKnowledgeGraphGenerationTask,
+  persistKnowledgeGraphGenerationTask
+} from '@/api/graph';
+
+const TASK_POLL_INTERVAL_MS = 1000;
+const TASK_MAX_POLL_ATTEMPTS = 600;
 
 const props = defineProps({
   courseId: {
@@ -46,7 +53,7 @@ const generateKnowledgeGraph = async (payload) => {
   const pdfPaths = Array.isArray(payload?.pdfPaths) ? payload.pdfPaths : [];
 
   if ((!requirements || !requirements.trim()) && (!sourceText || !sourceText.trim()) && pdfPaths.length === 0) {
-    const error = new Error('请输入知识图谱内容描述或上传 PDF 文件');
+    const error = new Error('请输入知识图谱内容描述或上传文档');
     emit('generation-error', error);
     return;
   }
@@ -64,25 +71,58 @@ const generateKnowledgeGraph = async (payload) => {
     currentGraphId.value = '';
     requestAbortController = new AbortController();
 
-    emit('generation-progress', {
-      accumulated: '已提交后端生成请求，正在等待后端完成 AI 生成和图谱入库...',
-      progress: { percent: 20 }
-    });
-
-    const response = await generateKnowledgeGraphAndPersist({
+    const requestPayload = {
       courseId: props.courseId,
       courseName: props.courseName || `课程-${props.courseId}`,
       teacherRequirements: requirements,
       sourceText,
       pdfPaths,
       graphType: '0'
-    }, requestAbortController.signal);
+    };
 
-    const data = response?.data || response || {};
+    const createResponse = await createKnowledgeGraphGenerationTask(
+      requestPayload,
+      requestAbortController.signal
+    );
+    const createData = unwrapApiData(createResponse);
+    currentTaskId.value = createData.taskId || createData.task?.taskId || '';
+    if (!currentTaskId.value) {
+      throw new Error('未获取到知识图谱任务ID');
+    }
+
+    emit('generation-progress', {
+      accumulated: '任务已提交，正在解析资料并生成一级节点...',
+      progress: { percent: 10 },
+      taskId: currentTaskId.value,
+      partial: true
+    });
+
+    const completedTask = await pollGenerationTask(
+      currentTaskId.value,
+      requestAbortController.signal
+    );
+    const completedPreviewText = buildPreviewText(completedTask.result);
+
+    emit('generation-progress', {
+      accumulated: '图谱内容已生成，正在保存到课程图谱...',
+      progress: { percent: 95 },
+      taskId: currentTaskId.value,
+      taskResult: completedTask.result,
+      taskDetail: completedTask,
+      result: completedPreviewText,
+      original: completedPreviewText,
+      partial: true
+    });
+
+    const persistResponse = await persistKnowledgeGraphGenerationTask(
+      currentTaskId.value,
+      requestAbortController.signal
+    );
+    const data = unwrapApiData(persistResponse);
     const taskResult = data.result || data.task?.result || null;
     const previewText = buildPreviewText(taskResult);
 
-    currentTaskId.value = data.taskId || data.task?.taskId || '';
+    currentTaskId.value = data.taskId || data.task?.taskId || currentTaskId.value;
     currentGraphId.value = data.graphId || '';
     latestTaskResult.value = taskResult;
     latestTaskDetail.value = data.task || null;
@@ -180,6 +220,135 @@ const getGraphId = () => currentGraphId.value;
 const getTaskResult = () => latestTaskResult.value;
 
 const getNodeCount = () => latestTaskResult.value?.nodes?.length || 0;
+
+const pollGenerationTask = async (taskId, signal) => {
+  for (let attempt = 0; attempt < TASK_MAX_POLL_ATTEMPTS; attempt += 1) {
+    throwIfAborted(signal);
+    const response = await getKnowledgeGraphGenerationTask(taskId, signal);
+    const task = unwrapApiData(response);
+    handleTaskUpdate(task);
+
+    if (task.status === 'completed') {
+      return task;
+    }
+
+    if (task.status === 'failed') {
+      throw new Error(task.error || task.message || '知识图谱生成失败');
+    }
+
+    await waitForNextPoll(signal);
+  }
+
+  throw new Error('知识图谱生成超时，请稍后重试');
+};
+
+const handleTaskUpdate = (task) => {
+  latestTaskDetail.value = task;
+  const taskResult = task.result || null;
+  const previewText = buildPreviewText(taskResult);
+
+  if (previewText) {
+    latestTaskResult.value = taskResult;
+    generatedResult.value = previewText;
+    originalResult.value = previewText;
+    isResultModified.value = false;
+  }
+
+  emit('generation-progress', {
+    accumulated: resolveTaskProgressText(task),
+    progress: { percent: resolveTaskProgressPercent(task) },
+    taskId: currentTaskId.value,
+    taskResult,
+    taskDetail: task,
+    result: previewText,
+    original: previewText,
+    partial: task.status !== 'completed'
+  });
+};
+
+const resolveTaskProgressText = (task) => {
+  const currentItem = task?.progress?.currentItem || '';
+  const nodeCount = Array.isArray(task?.result?.nodes) ? task.result.nodes.length : 0;
+
+  if (task?.status === 'completed') {
+    return '知识图谱内容已生成，正在保存到课程图谱...';
+  }
+  if (task?.stage === 'generating_skeleton' && nodeCount > 0) {
+    const topLevelCount = countReturnedTopLevelNodes(task.result.nodes);
+    return `一级节点已返回，共 ${topLevelCount} 个节点，正在继续生成下级节点...`;
+  }
+  if (task?.stage === 'generating_light_cards') {
+    return currentItem
+      ? `图谱结构已返回，正在补充节点卡片：${currentItem}`
+      : '图谱结构已返回，正在补充节点卡片...';
+  }
+  if (currentItem) {
+    return currentItem;
+  }
+
+  return task?.message || '知识图谱生成中...';
+};
+
+const resolveTaskProgressPercent = (task) => {
+  if (task?.status === 'completed') {
+    return 95;
+  }
+  if (task?.status === 'failed') {
+    return 0;
+  }
+
+  const stagePercent = Number(task?.progress?.percent || 0);
+  const ranges = {
+    submitted: [5, 10],
+    loading_sources: [10, 20],
+    generating_skeleton: [20, 55],
+    generating_light_cards: [55, 90],
+    validating: [90, 95]
+  };
+  const range = ranges[task?.stage] || [10, 90];
+  const mapped = range[0] + Math.round(((range[1] - range[0]) * stagePercent) / 100);
+  return Math.min(Math.max(mapped, range[0]), range[1]);
+};
+
+const unwrapApiData = (response) => response?.data || response || {};
+
+const countReturnedTopLevelNodes = (nodes) => {
+  const summaryChildren = nodes.filter(node => String(node.parentId || '') === 'summary');
+  if (summaryChildren.length > 0) {
+    return summaryChildren.length;
+  }
+  return Math.max(nodes.length - 1, 0);
+};
+
+const waitForNextPoll = (signal) => new Promise((resolve, reject) => {
+  if (signal?.aborted) {
+    reject(createAbortError());
+    return;
+  }
+
+  const onAbort = () => {
+    clearTimeout(timer);
+    reject(createAbortError());
+  };
+  const timer = setTimeout(() => {
+    signal?.removeEventListener('abort', onAbort);
+    resolve();
+  }, TASK_POLL_INTERVAL_MS);
+
+  signal?.addEventListener('abort', onAbort, { once: true });
+});
+
+const throwIfAborted = (signal) => {
+  if (signal?.aborted) {
+    throw createAbortError();
+  }
+};
+
+const createAbortError = () => {
+  const error = new Error('知识图谱生成已取消');
+  error.name = 'AbortError';
+  return error;
+};
 
 const buildPreviewText = (result) => {
   const nodes = Array.isArray(result?.nodes) ? result.nodes : [];

@@ -28,6 +28,7 @@
           :is-generating="aiGenerationService?.isGenerating || false"
           :generation-progress="generationProgress"
           :generation-progress-text="generationProgressText"
+          :task-result="latestTaskResult"
           :is-exporting="false"
           :export-progress="0"
           :export-progress-text="''"
@@ -165,13 +166,24 @@ const onGenerationStart = () => {
   originalResult.value = '';
   isResultModified.value = false;
   generationProgress.value = 0;
-  generationProgressText.value = '已提交后端生成请求，后端正在完成 AI 生成和图谱更新...';
+  generationProgressText.value = '已提交后端生成请求，正在生成一级节点...';
   console.log('开始调用后端知识图谱生成接口...');
 };
 
 const onGenerationProgress = (data) => {
   generationProgress.value = data.progress?.percent || 0;
   generationProgressText.value = data.accumulated;
+  if (data.result) {
+    generatedResult.value = data.result;
+    originalResult.value = data.original || data.result;
+    isResultModified.value = false;
+  }
+  if (data.taskId) {
+    latestTaskId.value = data.taskId;
+  }
+  if (data.taskResult) {
+    latestTaskResult.value = data.taskResult;
+  }
   console.log('知识图谱生成进度:', data.accumulated);
 };
 

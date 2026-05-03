@@ -18,7 +18,9 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import com.hiprof.common.annotation.Log;
 import com.hiprof.common.core.controller.BaseController;
 import com.hiprof.common.core.domain.AjaxResult;
@@ -105,6 +107,37 @@ public class ZstpGraphController extends BaseController
     )
     {
         return success(knowledgeAgentService.generateAndPersistGraph(request, loginUser.getUserId().toString()));
+    }
+
+    @Operation(summary = "提交知识图谱生成任务")
+    @PostMapping("/agent/tasks")
+    public AjaxResult createGenerationTask(@RequestBody KnowledgeGraphGenerateRequest request)
+    {
+        return success(knowledgeAgentService.createGenerationTask(request));
+    }
+
+    @Operation(summary = "解析知识图谱生成资料")
+    @PostMapping("/agent/sources/parse")
+    public AjaxResult parseGenerationSource(@RequestParam("file") MultipartFile file)
+    {
+        return success(knowledgeAgentService.parseGenerationSource(file));
+    }
+
+    @Operation(summary = "查询知识图谱生成任务")
+    @GetMapping("/agent/tasks/{taskId}")
+    public AjaxResult getGenerationTask(@PathVariable String taskId)
+    {
+        return success(knowledgeAgentService.getGenerationTask(taskId));
+    }
+
+    @Operation(summary = "保存已完成的知识图谱生成任务")
+    @PostMapping("/agent/tasks/{taskId}/persist")
+    public AjaxResult persistGenerationTask(
+            @PathVariable String taskId,
+            @AuthenticationPrincipal LoginUser loginUser
+    )
+    {
+        return success(knowledgeAgentService.persistGenerationTask(taskId, loginUser.getUserId().toString()));
     }
 
     @Operation(summary = "手动生成知识点深卡片")

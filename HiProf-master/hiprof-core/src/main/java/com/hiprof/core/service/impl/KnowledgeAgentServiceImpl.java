@@ -17,7 +17,8 @@ import com.hiprof.core.service.IZstpNodeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -29,19 +30,20 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Service
 public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
 {
-    private static final int TASK_POLL_INTERVAL_MS = 2000;
-    private static final int TASK_MAX_POLL_ATTEMPTS = 300;
+    private static final int TASK_POLL_INTERVAL_MS = 1000;
+    private static final int TASK_MAX_POLL_ATTEMPTS = 600;
 
     private static class PersistResult
     {
@@ -85,6 +87,9 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
     @Autowired
     private IClCoursesService clCoursesService;
 
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
     private JsonNode createTask(KnowledgeGraphGenerateRequest request)
     {
         if (!knowledgeAgentProperties.isEnabled())
@@ -127,6 +132,53 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
         return executeJsonRequest(HttpMethod.POST, buildDeepCardUrl(), request);
     }
 
+    @Override
+    public JsonNode parseGenerationSource(MultipartFile file)
+    {
+        if (file == null || file.isEmpty())
+        {
+            throw new ServiceException("上传文件不能为空");
+        }
+        return executeMultipartRequest(buildSourceParseUrl(), file);
+    }
+
+    @Override
+    public Map<String, Object> createGenerationTask(KnowledgeGraphGenerateRequest request)
+    {
+        JsonNode taskResponse = createTask(request);
+        String taskId = defaultText(taskResponse.path("taskId"), null);
+        if (StringUtils.isBlank(taskId))
+        {
+            throw new ServiceException("未获取到知识图谱任务ID");
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("taskId", taskId);
+        result.put("status", defaultText(taskResponse.path("status"), ""));
+        result.put("stage", defaultText(taskResponse.path("stage"), ""));
+        result.put("task", taskResponse);
+        return result;
+    }
+
+    @Override
+    public JsonNode getGenerationTask(String taskId)
+    {
+        return getTask(taskId);
+    }
+
+    @Override
+    public Map<String, Object> persistGenerationTask(String taskId, String createBy)
+    {
+        JsonNode completedTask = getTask(taskId);
+        PersistResult persistResult = transactionTemplate.execute(status -> persistTaskContent(completedTask, createBy));
+        if (persistResult == null)
+        {
+            throw new ServiceException("知识图谱保存失败");
+        }
+
+        return buildPersistResponse(taskId, completedTask, persistResult);
+    }
+
     private JsonNode getTask(String taskId)
     {
         if (StringUtils.isBlank(taskId))
@@ -136,7 +188,6 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
         return executeJsonRequest(HttpMethod.GET, buildTaskUrl(taskId), null);
     }
 
-    @Transactional
     @Override
     public Map<String, Object> generateAndPersistGraph(KnowledgeGraphGenerateRequest request, String createBy)
     {
@@ -148,14 +199,29 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
         }
 
         JsonNode completedTask = waitForTaskCompletion(taskId);
-        PersistResult persistResult = persistTaskContent(completedTask, createBy);
+        PersistResult persistResult = transactionTemplate.execute(status -> persistTaskContent(completedTask, createBy));
+        if (persistResult == null)
+        {
+            throw new ServiceException("知识图谱保存失败");
+        }
 
+        return buildPersistResponse(taskId, completedTask, persistResult);
+    }
+
+    private Map<String, Object> buildPersistResponse(String taskId, JsonNode completedTask, PersistResult persistResult)
+    {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("taskId", taskId);
         result.put("graphId", persistResult.getPrimaryGraphId());
         result.put("graphIds", persistResult.getGraphIds());
         result.put("graphCount", persistResult.getGraphCount());
-        result.put("graphName", defaultText(completedTask.path("result").path("graphTitle"), resolveCourseName(request)));
+        result.put(
+                "graphName",
+                defaultText(
+                        completedTask.path("result").path("graphTitle"),
+                        defaultText(completedTask.path("request").path("courseName"), "课程知识图谱")
+                )
+        );
         result.put("result", completedTask.path("result"));
         result.put("task", completedTask);
         return result;
@@ -624,6 +690,68 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
         }
     }
 
+    private JsonNode executeMultipartRequest(String url, MultipartFile file)
+    {
+        String boundary = "----HiProfKnowledgeAgent" + UUID.randomUUID();
+        HttpURLConnection connection = null;
+        try
+        {
+            connection = (HttpURLConnection) new URL(url).openConnection();
+            connection.setRequestMethod(HttpMethod.POST.name());
+            connection.setConnectTimeout(knowledgeAgentProperties.getConnectTimeout());
+            connection.setReadTimeout(knowledgeAgentProperties.getReadTimeout());
+            connection.setDoOutput(true);
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+
+            try (OutputStream outputStream = connection.getOutputStream())
+            {
+                writeMultipartFile(outputStream, boundary, file);
+            }
+
+            int responseCode = connection.getResponseCode();
+            String body = readBody(responseCode >= 200 && responseCode < 300 ? connection.getInputStream() : connection.getErrorStream());
+            if (responseCode < 200 || responseCode >= 300)
+            {
+                throw new ServiceException("知识图谱资料解析失败: " + responseCode + " " + body);
+            }
+            if (StringUtils.isBlank(body))
+            {
+                throw new ServiceException("知识图谱资料解析服务返回为空");
+            }
+            return objectMapper.readTree(body);
+        }
+        catch (IOException e)
+        {
+            throw new ServiceException("知识图谱资料解析异常: " + e.getMessage());
+        }
+        finally
+        {
+            if (connection != null)
+            {
+                connection.disconnect();
+            }
+        }
+    }
+
+    private void writeMultipartFile(OutputStream outputStream, String boundary, MultipartFile file) throws IOException
+    {
+        String lineBreak = "\r\n";
+        String fileName = StringUtils.defaultIfBlank(file.getOriginalFilename(), "uploaded-file");
+        String contentType = StringUtils.defaultIfBlank(file.getContentType(), "application/octet-stream");
+        String safeFileName = fileName.replace("\\", "\\\\").replace("\"", "\\\"");
+
+        outputStream.write(("--" + boundary + lineBreak).getBytes(StandardCharsets.UTF_8));
+        outputStream.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + safeFileName + "\"" + lineBreak).getBytes(StandardCharsets.UTF_8));
+        outputStream.write(("Content-Type: " + contentType + lineBreak + lineBreak).getBytes(StandardCharsets.UTF_8));
+        try (InputStream inputStream = file.getInputStream())
+        {
+            inputStream.transferTo(outputStream);
+        }
+        outputStream.write(lineBreak.getBytes(StandardCharsets.UTF_8));
+        outputStream.write(("--" + boundary + "--" + lineBreak).getBytes(StandardCharsets.UTF_8));
+    }
+
     private String readBody(InputStream inputStream) throws IOException
     {
         if (inputStream == null)
@@ -658,6 +786,12 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
     {
         String baseUrl = StringUtils.stripEnd(knowledgeAgentProperties.getBaseUrl(), "/");
         return baseUrl + "/api/v1/knowledge-agent/deep-card";
+    }
+
+    private String buildSourceParseUrl()
+    {
+        String baseUrl = StringUtils.stripEnd(knowledgeAgentProperties.getBaseUrl(), "/");
+        return baseUrl + "/api/v1/knowledge-agent/sources/parse";
     }
 
     private String resolveCourseName(KnowledgeGraphGenerateRequest request)

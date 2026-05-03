@@ -70,12 +70,25 @@
           >
             <div class="node-content">
               <span class="node-number">{{ node.number }}</span>
-              <span
-                class="node-title editable-title"
-                :contenteditable="!readonlyResult"
-                @blur="!readonlyResult && editNodeTitle(node.id, $event.target.textContent)"
-                @keydown.enter.prevent="!readonlyResult && $event.target.blur()"
-              >{{ node.title }}</span>
+              <div class="node-main">
+                <span
+                  class="node-title editable-title"
+                  :contenteditable="!readonlyResult"
+                  @blur="!readonlyResult && editNodeTitle(node.id, $event.target.textContent)"
+                  @keydown.enter.prevent="!readonlyResult && $event.target.blur()"
+                >{{ node.title }}</span>
+                <div v-if="node.sourceRefs?.length" class="node-source-refs">
+                  <span class="node-source-label">来源</span>
+                  <span
+                    v-for="(sourceRef, sourceIndex) in node.sourceRefs.slice(0, 2)"
+                    :key="`${node.id}-source-${sourceIndex}`"
+                    class="node-source-ref"
+                    :title="sourceRef.excerpt"
+                  >
+                    {{ formatSourceRef(sourceRef) }}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -173,6 +186,10 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  taskResult: {
+    type: Object,
+    default: null
+  },
   exportProgress: {
     type: Number,
     default: 0
@@ -224,6 +241,11 @@ const isModified = computed(() => {
 
 // 解析生成的文本为节点结构（用于预览显示）
 const parseGeneratedText = () => {
+  if (Array.isArray(props.taskResult?.nodes) && props.taskResult.nodes.length > 0) {
+    parsedNodes.value = buildPreviewNodesFromTaskResult(props.taskResult.nodes);
+    return;
+  }
+
   if (!props.modelValue.trim()) {
     parsedNodes.value = [];
     return;
@@ -257,6 +279,69 @@ const parseGeneratedText = () => {
   } else {
     parseSimple();
   }
+};
+
+const buildPreviewNodesFromTaskResult = (nodes) => {
+  const normalizedNodes = nodes
+    .filter(node => node && (node.title || node.name || node.label))
+    .map(node => ({
+      ...node,
+      id: String(node.id),
+      parentId: normalizeParentId(node.parentId),
+      title: String(node.title || node.name || node.label || '').trim(),
+      level: Number(node.level || 1)
+    }));
+
+  const nodeIds = new Set(normalizedNodes.map(node => node.id));
+  const childrenMap = new Map();
+  normalizedNodes.forEach(node => {
+    const parentKey = node.parentId && nodeIds.has(node.parentId) ? node.parentId : 'root';
+    if (!childrenMap.has(parentKey)) {
+      childrenMap.set(parentKey, []);
+    }
+    childrenMap.get(parentKey).push(node);
+  });
+
+  childrenMap.forEach(children => {
+    children.sort((a, b) => {
+      if (a.level !== b.level) {
+        return a.level - b.level;
+      }
+      return a.id.localeCompare(b.id);
+    });
+  });
+
+  const result = [];
+  const visited = new Set();
+  const walk = (parentId, prefix = '') => {
+    const children = childrenMap.get(parentId) || [];
+    children.forEach((node, index) => {
+      if (visited.has(node.id)) {
+        return;
+      }
+      visited.add(node.id);
+      const number = prefix ? `${prefix}.${index + 1}` : `${index + 1}`;
+      result.push({
+        id: node.id,
+        number: `${number}:`,
+        title: node.title,
+        level: number.split('.').length,
+        originalLine: `${number}:${node.title}`,
+        sourceRefs: Array.isArray(node.sourceRefs) ? node.sourceRefs : []
+      });
+      walk(node.id, number);
+    });
+  };
+
+  walk('root');
+  return result;
+};
+
+const normalizeParentId = (parentId) => {
+  if (parentId === null || parentId === undefined || parentId === '' || parentId === 0 || parentId === '0') {
+    return null;
+  }
+  return String(parentId);
 };
 
 // 简单解析（备用方案）
@@ -326,6 +411,12 @@ const handleExport = () => {
   emit('export');
 };
 
+const formatSourceRef = (sourceRef) => {
+  const sourceName = sourceRef?.sourceName || '课程资料';
+  const locator = sourceRef?.locator ? ` ${sourceRef.locator}` : '';
+  return `${sourceName}${locator}`;
+};
+
 // 获取节点显示名称（包含层级信息）
 const getNodeDisplayName = (node) => {
   if (!node) return '未知节点';
@@ -344,6 +435,10 @@ const getNodeDisplayName = (node) => {
 watch(() => props.modelValue, () => {
   parseGeneratedText();
 }, { immediate: true });
+
+watch(() => props.taskResult, () => {
+  parseGeneratedText();
+});
 
 // 监听textNodeParserRef变化，重新解析
 watch(() => props.textNodeParserRef, () => {
@@ -400,6 +495,37 @@ watch(() => props.textNodeParserRef, () => {
 .preview-container {
   flex: 1;
   overflow-y: auto;
+}
+
+.node-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.node-source-refs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.node-source-label {
+  color: #64748b;
+}
+
+.node-source-ref {
+  max-width: 100%;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  color: #334155;
+  background-color: #f8fafc;
+  overflow-wrap: anywhere;
 }
 
 /* 操作按钮区域 */

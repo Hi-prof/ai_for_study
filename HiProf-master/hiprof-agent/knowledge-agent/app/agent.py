@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .config import settings
 from .llm import llm_client
@@ -13,6 +14,7 @@ from .models import (
     KnowledgeGraphResult,
     LightweightCard,
     ManualDeepCardRequest,
+    SourceReference,
     TaskRecord,
     TaskStage,
     TaskStatus,
@@ -31,8 +33,17 @@ from .store import task_store
 
 
 class KnowledgeGraphAgent:
-    LIGHT_CARD_BATCH_SIZE = 6
-    MAX_SOURCE_CHARS = 12000
+    COURSE_TOPIC_BATCH_SIZE = max(settings.course_topic_batch_size, 1)
+    LIGHT_CARD_BATCH_SIZE = max(settings.light_card_batch_size, 1)
+    LIGHT_CARD_CONCURRENCY = max(settings.light_card_concurrency, 1)
+    LIGHT_CARD_MAX_ATTEMPTS = 2
+    MAX_INITIAL_NODES = max(settings.max_initial_nodes, 8)
+    MAX_SOURCE_CHARS = max(settings.max_source_chars, 4000)
+    STRUCTURE_LINE_PATTERN = re.compile(
+        r"(第[一二三四五六七八九十百\d]+[章节单元]|chapter\s+\d+|unit\s+\d+|module\s+\d+|"
+        r"专题|模块|单元|知识点|学习目标|重点|难点|\d+[.、]\d*)",
+        flags=re.IGNORECASE,
+    )
 
     def run_task(self, task_id: str) -> None:
         task = task_store.get(task_id)
@@ -141,20 +152,14 @@ class KnowledgeGraphAgent:
         nodes: list[GraphNode],
         source_summary: str,
     ) -> None:
+        self._attach_source_references(nodes, source_summary)
         task.result = KnowledgeGraphResult(
             graphTitle=graph_title,
             nodes=nodes,
             validation=ValidationResult(
                 isValid=True,
                 warnings=[],
-                stats={
-                    "totalNodes": len(nodes),
-                    "focusNodes": sum(1 for node in nodes if node.isFocus),
-                    "lightCards": sum(
-                        1 for node in nodes if node.lightweightCard.definition
-                    ),
-                    "deepCards": sum(1 for node in nodes if node.deepCard is not None),
-                },
+                stats=self._validation_stats(nodes),
             ),
             sourceSummary=source_summary,
         )
@@ -174,13 +179,33 @@ class KnowledgeGraphAgent:
     def _summarize_text(
         self, text: str, max_chars: int | None = None
     ) -> str:
+        limit = max_chars or self.MAX_SOURCE_CHARS
         normalized = text.replace("\r\n", "\n").replace("\r", "\n")
         lines = [
             re.sub(r"\s+", " ", line).strip()
             for line in normalized.split("\n")
         ]
         cleaned = "\n".join(line for line in lines if line)
-        return cleaned[: (max_chars or self.MAX_SOURCE_CHARS)]
+        if len(cleaned) <= limit:
+            return cleaned
+
+        non_empty_lines = [line for line in lines if line]
+        head_lines = self._fit_lines(non_empty_lines[:8], max(limit // 4, 1))
+        tail_lines = self._fit_lines(non_empty_lines[-6:], max(limit // 4, 1))
+        reserved = len("\n".join([*head_lines, *tail_lines])) + 2
+        middle_budget = max(limit - reserved, 0)
+        head_set = set(head_lines)
+        tail_set = set(tail_lines)
+        structure_lines = [
+            line
+            for line in non_empty_lines
+            if line not in head_set
+            and line not in tail_set
+            and self.STRUCTURE_LINE_PATTERN.search(line)
+        ]
+        middle_lines = self._fit_lines(structure_lines, middle_budget)
+        summary = "\n".join([*head_lines, *middle_lines, *tail_lines]).strip()
+        return summary[:limit]
 
     def _generate_skeleton(
         self, task: TaskRecord, request: GenerationRequest, source_summary: str
@@ -268,6 +293,7 @@ class KnowledgeGraphAgent:
             source_summary,
         )
         topic_nodes = [node for node in overview_nodes if node.parentId == "summary"]
+        self._save_partial_result(task, graph_title, overview_nodes, source_summary)
         self._update(
             task,
             TaskStatus.running,
@@ -276,35 +302,61 @@ class KnowledgeGraphAgent:
             progress=self._progress_payload(
                 4,
                 6,
-                f"一级主题已生成，共 {len(topic_nodes)} 个",
+                f"一级节点已生成，共 {len(topic_nodes)} 个，正在继续扩展二三级节点",
             ),
         )
-        expansion_system_prompt, expansion_user_prompt = (
-            build_course_topic_expansion_prompt(
-                request.courseName,
-                request.teacherRequirements,
-                source_summary,
-                overview_nodes[0].title,
-                [self._node_stub(node) for node in topic_nodes],
-                target_plan,
-            )
-        )
+        topic_batches = self._chunk_nodes(topic_nodes, self.COURSE_TOPIC_BATCH_SIZE)
         self._update(
             task,
             TaskStatus.running,
             TaskStage.generating_skeleton,
-            "Expanding lower-level topics",
-            progress=self._progress_payload(5, 6, "扩展二三级知识点"),
+            "Expanding lower-level topics by batch",
+            progress=self._progress_payload(
+                0, len(topic_batches), "开始按一级主题分批扩展二三级知识点"
+            ),
         )
-        expansion_payload = llm_client.complete_json(
-            expansion_system_prompt,
-            expansion_user_prompt,
-            model=settings.skeleton_model,
-        )
-        expansion_nodes = self._build_course_expansion_nodes(
-            expansion_payload, topic_nodes
-        )
+
+        expansion_nodes: list[GraphNode] = []
+        for batch_index, topic_batch in enumerate(topic_batches, start=1):
+            expansion_system_prompt, expansion_user_prompt = (
+                build_course_topic_expansion_prompt(
+                    request.courseName,
+                    request.teacherRequirements,
+                    source_summary,
+                    overview_nodes[0].title,
+                    [self._node_stub(node) for node in topic_batch],
+                    target_plan,
+                )
+            )
+            expansion_payload = llm_client.complete_json(
+                expansion_system_prompt,
+                expansion_user_prompt,
+                model=settings.skeleton_model,
+            )
+            expansion_nodes.extend(
+                self._build_course_expansion_nodes(expansion_payload, topic_batch)
+            )
+            partial_nodes = self._normalize_levels(overview_nodes + expansion_nodes)
+            partial_nodes = self._limit_nodes_by_breadth(
+                partial_nodes, self.MAX_INITIAL_NODES
+            )
+            partial_nodes = self._normalize_levels(partial_nodes)
+            self._save_partial_result(task, graph_title, partial_nodes, source_summary)
+            self._update(
+                task,
+                TaskStatus.running,
+                TaskStage.generating_skeleton,
+                f"Expanded lower-level topics batch {batch_index}/{len(topic_batches)}",
+                progress=self._progress_payload(
+                    batch_index,
+                    len(topic_batches),
+                    f"已扩展第 {batch_index}/{len(topic_batches)} 批一级节点",
+                ),
+            )
+
         all_nodes = self._normalize_levels(overview_nodes + expansion_nodes)
+        all_nodes = self._limit_nodes_by_breadth(all_nodes, self.MAX_INITIAL_NODES)
+        all_nodes = self._normalize_levels(all_nodes)
         self._update(
             task,
             TaskStatus.running,
@@ -561,6 +613,35 @@ class KnowledgeGraphAgent:
 
         return nodes
 
+    def _limit_nodes_by_breadth(
+        self, nodes: list[GraphNode], max_nodes: int
+    ) -> list[GraphNode]:
+        if max_nodes <= 0 or len(nodes) <= max_nodes:
+            return nodes
+
+        children_map: dict[str, list[GraphNode]] = {}
+        roots: list[GraphNode] = []
+        for node in nodes:
+            if node.parentId is None:
+                roots.append(node)
+            else:
+                children_map.setdefault(node.parentId, []).append(node)
+
+        queue = [*roots]
+        selected: list[GraphNode] = []
+        selected_ids: set[str] = set()
+        while queue and len(selected) < max_nodes:
+            current = queue.pop(0)
+            if current.id in selected_ids:
+                continue
+            if current.parentId is not None and current.parentId not in selected_ids:
+                continue
+            selected.append(current)
+            selected_ids.add(current.id)
+            queue.extend(children_map.get(current.id, []))
+
+        return selected or nodes[:max_nodes]
+
     def _generate_light_cards(
         self,
         task: TaskRecord,
@@ -573,50 +654,90 @@ class KnowledgeGraphAgent:
         if total == 0:
             return
 
-        for chunk_index, node_chunk in enumerate(
-            self._chunk_nodes(nodes, self.LIGHT_CARD_BATCH_SIZE), start=1
-        ):
+        completed = 0
+        chunks = self._chunk_nodes(nodes, self.LIGHT_CARD_BATCH_SIZE)
+        max_workers = min(self.LIGHT_CARD_CONCURRENCY, len(chunks))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_map = {
+                executor.submit(
+                    self._generate_light_cards_for_nodes,
+                    request.courseName,
+                    source_summary,
+                    node_chunk,
+                ): node_chunk
+                for node_chunk in chunks
+            }
+            for future in as_completed(future_map):
+                node_chunk = future_map[future]
+                cards = future.result()
+                self._apply_light_cards(node_chunk, cards)
+                completed += len(node_chunk)
+                self._save_partial_result(
+                    task,
+                    task.result.graphTitle if task.result else request.courseName,
+                    nodes,
+                    source_summary,
+                )
+                current_node = node_chunk[-1].title if node_chunk else ""
+                self._update(
+                    task,
+                    TaskStatus.running,
+                    TaskStage.generating_light_cards,
+                    f"Generating lightweight cards {completed}/{total}",
+                    progress=self._progress_payload(
+                        completed,
+                        total,
+                        current_node,
+                    ),
+                )
+
+    def _generate_light_cards_for_nodes(
+        self, course_name: str, source_summary: str, nodes: list[GraphNode]
+    ) -> dict[str, LightweightCard]:
+        remaining = [*nodes]
+        cards: dict[str, LightweightCard] = {}
+
+        for _attempt in range(self.LIGHT_CARD_MAX_ATTEMPTS):
             system_prompt, user_prompt = build_light_card_prompt(
-                request.courseName,
+                course_name,
                 source_summary,
-                [self._node_stub(node) for node in node_chunk],
+                [self._node_stub(node) for node in remaining],
             )
             payload = llm_client.complete_json(
                 system_prompt, user_prompt, model=settings.card_model
             )
-            cards = {str(item.get("id")): item for item in payload.get("cards") or []}
-            for node in node_chunk:
-                card = cards.get(node.id)
-                if card is None:
-                    raise RuntimeError(
-                        f"Remote LLM returned no light card for node {node.id}"
-                    )
-                node.lightweightCard = LightweightCard(
+            raw_cards = {
+                str(item.get("id")): item
+                for item in payload.get("cards") or []
+                if isinstance(item, dict) and item.get("id")
+            }
+            for node in remaining:
+                card = raw_cards.get(node.id)
+                if card is None or not str(card.get("definition") or "").strip():
+                    continue
+                cards[node.id] = LightweightCard(
                     definition=str(card.get("definition") or ""),
                     keywords=self._to_list(card.get("keywords")),
                     example=str(card.get("example") or ""),
                     relatedKnowledge=self._to_list(card.get("relatedKnowledge")),
                 )
+            remaining = [node for node in remaining if node.id not in cards]
+            if not remaining:
+                return cards
 
-            completed = min(chunk_index * self.LIGHT_CARD_BATCH_SIZE, total)
-            self._save_partial_result(
-                task,
-                task.result.graphTitle if task.result else request.courseName,
-                nodes,
-                source_summary,
-            )
-            current_node = node_chunk[-1].title if node_chunk else ""
-            self._update(
-                task,
-                TaskStatus.running,
-                TaskStage.generating_light_cards,
-                f"Generating lightweight cards {completed}/{total}",
-                progress=self._progress_payload(
-                    completed,
-                    total,
-                    current_node,
-                ),
-            )
+        missing = "、".join(f"{node.id}({node.title})" for node in remaining)
+        raise RuntimeError(f"Remote LLM returned no light card for nodes: {missing}")
+
+    def _apply_light_cards(
+        self, nodes: list[GraphNode], cards: dict[str, LightweightCard]
+    ) -> None:
+        for node in nodes:
+            card = cards.get(node.id)
+            if card is None:
+                raise RuntimeError(
+                    f"Remote LLM returned no light card for node {node.id}"
+                )
+            node.lightweightCard = card
 
     def _generate_deep_cards(
         self, request: GenerationRequest, source_summary: str, nodes: list[GraphNode]
@@ -719,6 +840,7 @@ class KnowledgeGraphAgent:
     def _validate(self, nodes: list[GraphNode]) -> ValidationResult:
         warnings: list[str] = []
         node_ids = {node.id for node in nodes}
+        seen_titles: set[str] = set()
         for node in nodes:
             if node.parentId and node.parentId not in node_ids:
                 warnings.append(f"Missing parent for node {node.id}")
@@ -726,20 +848,149 @@ class KnowledgeGraphAgent:
                 warnings.append(
                     f"Lightweight card missing definition for node {node.id}"
                 )
+            normalized_title = node.title.strip()
+            if normalized_title in seen_titles:
+                warnings.append(f"Duplicate node title: {node.title}")
+            seen_titles.add(normalized_title)
+            if node.level > 4:
+                warnings.append(f"Node level is too deep for {node.id}")
         if len(nodes) < 4:
             warnings.append("Graph contains too few nodes")
         return ValidationResult(
             isValid=not warnings,
             warnings=warnings,
-            stats={
-                "totalNodes": len(nodes),
-                "focusNodes": sum(1 for node in nodes if node.isFocus),
-                "lightCards": sum(
-                    1 for node in nodes if node.lightweightCard.definition
-                ),
-                "deepCards": sum(1 for node in nodes if node.deepCard is not None),
-            },
+            stats=self._validation_stats(nodes),
         )
+
+    def _validation_stats(self, nodes: list[GraphNode]) -> dict:
+        return {
+            "totalNodes": len(nodes),
+            "focusNodes": sum(1 for node in nodes if node.isFocus),
+            "lightCards": sum(
+                1 for node in nodes if node.lightweightCard.definition
+            ),
+            "deepCards": sum(1 for node in nodes if node.deepCard is not None),
+            "sourceReferencedNodes": sum(1 for node in nodes if node.sourceRefs),
+        }
+
+    def _attach_source_references(
+        self, nodes: list[GraphNode], source_summary: str
+    ) -> None:
+        sections = self._extract_source_sections(source_summary)
+        if not sections:
+            return
+        for node in nodes:
+            node.sourceRefs = self._infer_source_references(node.title, sections)
+
+    def _extract_source_sections(self, source_summary: str) -> list[dict[str, str]]:
+        lines = source_summary.splitlines()
+        sections: list[dict[str, str]] = []
+        current: dict[str, str] | None = None
+        current_lines: list[str] = []
+
+        def flush() -> None:
+            if current is None:
+                return
+            text = "\n".join(line.strip() for line in current_lines if line.strip())
+            if text:
+                sections.append({**current, "text": text})
+
+        for line in lines:
+            marker_match = re.match(r"^===\s*(.+?)\s*===$", line.strip())
+            if marker_match:
+                flush()
+                current = self._parse_source_marker(marker_match.group(1))
+                current_lines = []
+                continue
+            if current is None:
+                current = {
+                    "sourceName": "教师输入与课程资料",
+                    "locator": "摘要",
+                }
+            current_lines.append(line)
+
+        flush()
+        return sections
+
+    def _parse_source_marker(self, marker: str) -> dict[str, str]:
+        marker = re.sub(r"\s+", " ", marker).strip()
+        locator_match = re.search(
+            r"(第\s*\d+\s*页|幻灯片\s*\d+|正文|全文|header\d*|footer\d*)$",
+            marker,
+            flags=re.IGNORECASE,
+        )
+        if not locator_match:
+            return {"sourceName": marker, "locator": ""}
+
+        locator = locator_match.group(1).strip()
+        source_name = marker[: locator_match.start()].strip()
+        return {
+            "sourceName": source_name or marker,
+            "locator": locator,
+        }
+
+    def _infer_source_references(
+        self, title: str, sections: list[dict[str, str]]
+    ) -> list[SourceReference]:
+        tokens = self._source_match_tokens(title)
+        scored_sections: list[tuple[int, dict[str, str], str]] = []
+        for section in sections:
+            text = section["text"]
+            score = 0
+            best_token = ""
+            if title and title in text:
+                score += 10
+                best_token = title
+            for token in tokens:
+                if token in text:
+                    score += 1
+                    if not best_token or len(token) > len(best_token):
+                        best_token = token
+            if score > 0:
+                scored_sections.append((score, section, best_token))
+
+        if not scored_sections:
+            return []
+
+        scored_sections.sort(key=lambda item: item[0], reverse=True)
+        references = []
+        for _score, section, token in scored_sections[:2]:
+            references.append(
+                SourceReference(
+                    sourceName=section["sourceName"],
+                    locator=section["locator"],
+                    excerpt=self._source_excerpt(section["text"], token),
+                )
+            )
+        return references
+
+    def _source_match_tokens(self, title: str) -> list[str]:
+        cleaned = re.sub(r"[^\w\u4e00-\u9fff]+", " ", title).strip()
+        parts = [part for part in cleaned.split() if len(part) >= 2]
+        if parts:
+            return parts[:6]
+
+        compact = cleaned.replace(" ", "")
+        tokens = []
+        for size in (6, 5, 4, 3, 2):
+            for index in range(0, max(len(compact) - size + 1, 0)):
+                token = compact[index : index + size]
+                if token and token not in tokens:
+                    tokens.append(token)
+                if len(tokens) >= 6:
+                    return tokens
+        return tokens
+
+    def _source_excerpt(self, text: str, token: str) -> str:
+        normalized = re.sub(r"\s+", " ", text).strip()
+        if not normalized:
+            return ""
+        index = normalized.find(token) if token else -1
+        if index < 0:
+            return normalized[:120]
+        start = max(index - 40, 0)
+        end = min(index + len(token) + 80, len(normalized))
+        return normalized[start:end]
 
     def _ensure_llm_enabled(self) -> None:
         if not llm_client.enabled:
@@ -783,6 +1034,20 @@ class KnowledgeGraphAgent:
             nodes[index : index + chunk_size]
             for index in range(0, len(nodes), chunk_size)
         ]
+
+    def _fit_lines(self, lines: list[str], max_chars: int) -> list[str]:
+        selected: list[str] = []
+        used = 0
+        for line in lines:
+            candidate = line if len(line) <= max_chars else line[:max_chars].rstrip()
+            if not candidate:
+                continue
+            cost = len(candidate) + (1 if selected else 0)
+            if used + cost > max_chars:
+                continue
+            selected.append(candidate)
+            used += cost
+        return selected
 
 
 knowledge_graph_agent = KnowledgeGraphAgent()

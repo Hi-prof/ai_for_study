@@ -46,6 +46,12 @@ class DeepCard(BaseModel):
     references: list[str] = Field(default_factory=list)
 
 
+class SourceReference(BaseModel):
+    sourceName: str = ""
+    locator: str = ""
+    excerpt: str = ""
+
+
 class ManualDeepCardRequest(BaseModel):
     courseName: str = Field(min_length=1)
     sourceText: str = ""
@@ -60,6 +66,7 @@ class GraphNode(BaseModel):
     lightweightCard: LightweightCard = Field(default_factory=LightweightCard)
     deepCard: DeepCard | None = None
     isFocus: bool = False
+    sourceRefs: list[SourceReference] = Field(default_factory=list)
 
 
 class ValidationResult(BaseModel):
