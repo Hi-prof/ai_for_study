@@ -690,6 +690,13 @@ export const getKnowledgeGraphGenerationTask = (taskId, signal) => {
   });
 };
 
+export const getKnowledgeGraphGenerationTaskStreamUrl = (taskId) => {
+  if (!taskId) {
+    throw new Error('任务ID不能为空');
+  }
+  return `/core/zstp/agent/tasks/${encodeURIComponent(taskId)}/stream`;
+};
+
 export const persistKnowledgeGraphGenerationTask = (taskId, signal) => {
   return request({
     url: `/core/zstp/agent/tasks/${taskId}/persist`,

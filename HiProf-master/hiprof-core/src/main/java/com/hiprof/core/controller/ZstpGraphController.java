@@ -10,6 +10,8 @@ import com.hiprof.core.service.IKnowledgeAgentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import com.hiprof.common.annotation.Log;
 import com.hiprof.common.core.controller.BaseController;
 import com.hiprof.common.core.domain.AjaxResult;
@@ -128,6 +131,16 @@ public class ZstpGraphController extends BaseController
     public AjaxResult getGenerationTask(@PathVariable String taskId)
     {
         return success(knowledgeAgentService.getGenerationTask(taskId));
+    }
+
+    @Operation(summary = "流式查询知识图谱生成任务")
+    @GetMapping(value = "/agent/tasks/{taskId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public ResponseEntity<StreamingResponseBody> streamGenerationTask(@PathVariable String taskId)
+    {
+        StreamingResponseBody body = outputStream -> knowledgeAgentService.streamGenerationTask(taskId, outputStream);
+        return ResponseEntity.ok()
+                .contentType(MediaType.TEXT_EVENT_STREAM)
+                .body(body);
     }
 
     @Operation(summary = "保存已完成的知识图谱生成任务")

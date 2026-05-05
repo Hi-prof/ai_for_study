@@ -167,6 +167,50 @@ public class KnowledgeAgentServiceImpl implements IKnowledgeAgentService
     }
 
     @Override
+    public void streamGenerationTask(String taskId, OutputStream outputStream)
+    {
+        if (StringUtils.isBlank(taskId))
+        {
+            throw new ServiceException("任务ID不能为空");
+        }
+
+        HttpURLConnection connection = null;
+        try
+        {
+            connection = (HttpURLConnection) new URL(buildTaskUrl(taskId) + "/stream").openConnection();
+            connection.setRequestMethod(HttpMethod.GET.name());
+            connection.setConnectTimeout(knowledgeAgentProperties.getConnectTimeout());
+            connection.setReadTimeout(0);
+            connection.setRequestProperty("Accept", "text/event-stream");
+
+            int responseCode = connection.getResponseCode();
+            if (responseCode < 200 || responseCode >= 300)
+            {
+                InputStream errorStream = connection.getErrorStream();
+                String body = errorStream != null ? readBody(errorStream) : "无错误详情";
+                throw new ServiceException("知识图谱任务流调用失败: " + responseCode + " " + body);
+            }
+
+            try (InputStream inputStream = connection.getInputStream())
+            {
+                inputStream.transferTo(outputStream);
+                outputStream.flush();
+            }
+        }
+        catch (IOException e)
+        {
+            throw new ServiceException("知识图谱任务流调用异常: " + e.getMessage());
+        }
+        finally
+        {
+            if (connection != null)
+            {
+                connection.disconnect();
+            }
+        }
+    }
+
+    @Override
     public Map<String, Object> persistGenerationTask(String taskId, String createBy)
     {
         JsonNode completedTask = getTask(taskId);
