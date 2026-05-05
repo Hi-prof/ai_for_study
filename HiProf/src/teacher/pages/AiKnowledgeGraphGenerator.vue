@@ -1,6 +1,5 @@
 <template>
   <div class="ai-knowledge-graph-generator">
-    <!-- 页面标题 -->
     <div class="page-header">
       <button class="btn btn-secondary" @click="goBack">
         <i class="back-icon"></i>
@@ -9,51 +8,15 @@
       <h2 class="page-title">AI生成知识图谱</h2>
     </div>
 
-    <!-- 主要内容区域 -->
-    <ResizableLayout>
-      <template #left>
-        <InputPanel
-          v-model="graphRequirements"
-          :is-generating="aiGenerationService?.isGenerating || false"
-          @generate="handleGenerate"
-          @stop="handleStop"
-        />
-      </template>
-
-      <template #right>
-        <ResultDisplay
-          v-model="generatedResult"
-          :original-value="originalResult"
-          :readonly-result="true"
-          :is-generating="aiGenerationService?.isGenerating || false"
-          :generation-progress="generationProgress"
-          :generation-progress-text="generationProgressText"
-          :task-result="latestTaskResult"
-          :is-exporting="false"
-          :export-progress="0"
-          :export-progress-text="''"
-          :export-label="latestGraphId ? '查看知识图谱' : '等待生成完成'"
-          :text-node-parser-ref="null"
-          :selected-parent-node-id="''"
-          :available-parent-nodes="[]"
-          :is-loading-nodes="false"
-          @reset="handleReset"
-          @export="handleExport"
-        />
-      </template>
-    </ResizableLayout>
-
-    <!-- 服务组件 -->
-    <AiGenerationService
-      ref="aiGenerationService"
-      :course-id="courseId"
-      :course-name="courseName"
-      @generation-start="onGenerationStart"
-      @generation-progress="onGenerationProgress"
-      @generation-success="onGenerationSuccess"
-      @generation-error="onGenerationError"
-      @generation-complete="onGenerationComplete"
-    />
+    <main class="ai-chat-shell">
+      <KnowledgeGraphChatInput
+        v-model="graphRequirements"
+        :is-submitting="isSubmitting"
+        :progress-text="generationProgressText"
+        @generate="handleGenerate"
+        @stop="handleStop"
+      />
+    </main>
 
     <KnowledgeGraphManager
       ref="knowledgeGraphManager"
@@ -65,16 +28,13 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import InputPanel from '@/teacher/features/course-detail/knowledgegraph/InputPanel.vue';
-import ResultDisplay from '@/teacher/features/course-detail/knowledgegraph/ResultDisplay.vue';
-import ResizableLayout from '@/teacher/features/course-detail/knowledgegraph/ResizableLayout.vue';
-import AiGenerationService from '@/teacher/features/course-detail/knowledgegraph/refactored/AiGenerationService.vue';
+import { createKnowledgeGraphGenerationTask } from '@/api/graph';
+import KnowledgeGraphChatInput from '@/teacher/features/course-detail/knowledgegraph/KnowledgeGraphChatInput.vue';
 import KnowledgeGraphManager from '@/teacher/features/course-detail/knowledgegraph/refactored/KnowledgeGraphManager.vue';
 import '@/teacher/styles/ai-knowledge-graph-generator.css';
 
-// 定义props
 const props = defineProps({
   courseId: {
     type: [String, Number],
@@ -82,139 +42,75 @@ const props = defineProps({
   }
 });
 
-// 定义事件
-const emit = defineEmits(['knowledge-graph-updated']);
-
-// 路由
 const router = useRouter();
-
-// 组件引用
-const aiGenerationService = ref(null);
 const knowledgeGraphManager = ref(null);
-
-// 响应式数据
 const graphRequirements = ref('');
-const generatedResult = ref('');
-const originalResult = ref('');
-const isResultModified = ref(false);
-const generationProgress = ref(0);
+const isSubmitting = ref(false);
 const generationProgressText = ref('');
 const courseName = ref('');
-const latestTaskId = ref('');
-const latestGraphId = ref('');
-const latestTaskResult = ref(null);
+let generationAbortController = null;
 
-// 返回上一页
 const goBack = () => {
   router.back();
 };
 
-// 获取节点数量
-const getNodeCount = () => {
-  if (!generatedResult.value.trim() || !aiGenerationService.value) {
-    return 0;
-  }
-  return aiGenerationService.value.getNodeCount();
+const resolveTaskId = (response) => {
+  const data = response?.data || response || {};
+  return data.taskId || data.task?.taskId || data.data?.taskId || data.data?.task?.taskId;
 };
 
-// 处理生成请求
-const handleGenerate = (payload) => {
-  if (aiGenerationService.value) {
-    aiGenerationService.value.generateKnowledgeGraph(payload);
-  }
-};
+const handleGenerate = async (payload) => {
+  if (isSubmitting.value) return;
 
-// 处理停止生成
-const handleStop = () => {
-  if (aiGenerationService.value) {
-    aiGenerationService.value.stopGeneration();
+  if (!payload?.requirements?.trim() && !payload?.sourceText?.trim()) {
+    alert('请输入生成要求或上传可解析的资料');
+    return;
   }
-};
 
-// 处理重置
-const handleReset = () => {
-  if (aiGenerationService.value) {
-    const resetResult = aiGenerationService.value.resetResult();
-    if (resetResult) {
-      generatedResult.value = resetResult;
-      isResultModified.value = false;
+  generationAbortController = new AbortController();
+  isSubmitting.value = true;
+  generationProgressText.value = '正在创建知识图谱生成任务...';
+
+  try {
+    const response = await createKnowledgeGraphGenerationTask({
+      courseId: props.courseId,
+      courseName: courseName.value || `课程-${props.courseId}`,
+      teacherRequirements: payload.requirements,
+      sourceText: payload.sourceText,
+      pdfPaths: payload.pdfPaths || [],
+      graphType: '0'
+    }, generationAbortController.signal);
+    const taskId = resolveTaskId(response);
+
+    if (!taskId) {
+      throw new Error('未获取到知识图谱任务ID');
     }
+
+    generationProgressText.value = '任务已创建，正在进入预览页...';
+    router.push(`/teacher/course/${props.courseId}/ai-knowledge-graph/preview/${taskId}`);
+  } catch (error) {
+    if (error?.name === 'CanceledError' || error?.name === 'AbortError' || error?.code === 'ERR_CANCELED') {
+      generationProgressText.value = '已停止创建知识图谱生成任务';
+      return;
+    }
+
+    generationProgressText.value = error?.response?.data?.message
+      || error?.response?.data?.msg
+      || error?.message
+      || '创建知识图谱生成任务失败';
+    alert(generationProgressText.value);
+  } finally {
+    generationAbortController = null;
+    isSubmitting.value = false;
   }
 };
 
-// 处理导出
-const handleExport = () => {
-  if (!generatedResult.value.trim()) {
-    alert('暂无可查看的知识图谱结果');
-    return;
+const handleStop = () => {
+  if (generationAbortController) {
+    generationAbortController.abort();
   }
-
-  if (!latestGraphId.value) {
-    alert('请先完成一次 AI 生成，后端会自动创建并更新知识图谱');
-    return;
-  }
-
-  onNavigateToGraph();
 };
 
-// AI生成服务事件处理
-const onGenerationStart = () => {
-  latestTaskId.value = '';
-  latestGraphId.value = '';
-  latestTaskResult.value = null;
-  generatedResult.value = '';
-  originalResult.value = '';
-  isResultModified.value = false;
-  generationProgress.value = 0;
-  generationProgressText.value = '已提交后端生成请求，正在生成一级节点...';
-  console.log('开始调用后端知识图谱生成接口...');
-};
-
-const onGenerationProgress = (data) => {
-  generationProgress.value = data.progress?.percent || 0;
-  generationProgressText.value = data.accumulated;
-  if (data.result) {
-    generatedResult.value = data.result;
-    originalResult.value = data.original || data.result;
-    isResultModified.value = false;
-  }
-  if (data.taskId) {
-    latestTaskId.value = data.taskId;
-  }
-  if (data.taskResult) {
-    latestTaskResult.value = data.taskResult;
-  }
-  console.log('知识图谱生成进度:', data.accumulated);
-};
-
-const onGenerationSuccess = (data) => {
-  generatedResult.value = data.result;
-  originalResult.value = data.original;
-  isResultModified.value = false;
-  latestTaskId.value = data.taskId || '';
-  latestGraphId.value = data.graphId || '';
-  latestTaskResult.value = data.taskResult || null;
-  generationProgress.value = 100;
-  generationProgressText.value = '后端已完成知识图谱生成、解析并更新图谱内容';
-  emit('knowledge-graph-updated', {
-    graphId: latestGraphId.value,
-    taskId: latestTaskId.value
-  });
-  console.log('知识图谱已由后端直接更新，节点数:', data.taskResult?.nodes?.length || 0);
-};
-
-const onGenerationError = (error) => {
-  alert(error.message);
-};
-
-const onGenerationComplete = () => {
-  if (!latestTaskResult.value) {
-    generationProgress.value = 0;
-  }
-  console.log('知识图谱生成完成');
-};
-
-// 知识图谱管理器事件处理
 const onCourseInfoLoaded = (name) => {
   courseName.value = name;
 };
@@ -223,24 +119,4 @@ const onOperationError = (error) => {
   console.error('操作错误:', error);
   alert(error.message);
 };
-
-const onNavigateToGraph = () => {
-  console.log('导航到知识图谱页面');
-  // 跳转到课程详情页面，会自动显示知识图谱
-  router.push(`/teacher/course/${props.courseId}`);
-};
-
-// 监听生成结果的变化，检测是否被修改
-watch(generatedResult, (newValue) => {
-  if (originalResult.value && newValue !== originalResult.value) {
-    isResultModified.value = true;
-  } else if (newValue === originalResult.value) {
-    isResultModified.value = false;
-  }
-  
-  // 同步更新AI生成服务的状态
-  if (aiGenerationService.value) {
-    aiGenerationService.value.updateResult(newValue);
-  }
-});
 </script>
