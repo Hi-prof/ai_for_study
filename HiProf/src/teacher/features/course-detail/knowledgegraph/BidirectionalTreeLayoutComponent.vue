@@ -128,17 +128,16 @@ const horizontalBidirectionalOptions: RGOptions = {
   'defaultNodeShape': 1,
   'layout': {
     'label': '水平双向树',
-    'layoutName': 'tree',
-    'from': 'left',  // 从左侧开始展开，但会自动双向
+    'layoutName': 'fixed',
     'layoutDirection': 'h',  // 水平方向
     'centerOffset_x': 0,
     'centerOffset_y': 0,
     'distance_coefficient': 1,
     'levelDistance': '',
-    'min_per_width': 200,   // 最小宽度间距
-    'max_per_width': 300,   // 最大宽度间距
-    'min_per_height': 60,   // 最小高度间距
-    'max_per_height': 80,   // 最大高度间距
+    'min_per_width': 260,   // 最小宽度间距
+    'max_per_width': 420,   // 最大宽度间距
+    'min_per_height': 80,   // 最小高度间距
+    'max_per_height': 140,   // 最大高度间距
     'maxLayoutTimes': 300,
     'force_node_repulsion': 1,
     'force_line_elastic': 1
@@ -211,6 +210,91 @@ const getDynamicLayoutOptions = (nodeCount: number, maxDepth: number) => {
     minPerHeight,
     maxPerHeight
   };
+};
+
+const BIDIRECTIONAL_DEPTH_GAP = 320;
+const BIDIRECTIONAL_ROW_GAP = 120;
+
+const applyBidirectionalPositions = (graphData: any) => {
+  if (!graphData?.nodes?.length) return graphData;
+
+  const nodeById = new Map<string, any>();
+  graphData.nodes.forEach((node: any) => {
+    nodeById.set(String(node.id), node);
+  });
+
+  const childrenByParent = new Map<string, any[]>();
+  (graphData.links || []).forEach((link: any) => {
+    const child = nodeById.get(String(link.to));
+    if (!child) return;
+
+    const key = String(link.from);
+    if (!childrenByParent.has(key)) {
+      childrenByParent.set(key, []);
+    }
+    childrenByParent.get(key)!.push(child);
+  });
+
+  const rootId = String(graphData.rootId || graphData.nodes[0]?.id || '');
+  const root = nodeById.get(rootId);
+  if (root) {
+    root.x = 0;
+    root.y = 0;
+    root.fixed = true;
+    root.data = { ...(root.data || {}), branchSide: 'root' };
+  }
+
+  const firstLevel = (childrenByParent.get(rootId) || []).filter(Boolean);
+  let rightRow = 0;
+  let leftRow = 0;
+  firstLevel.forEach((node, index) => {
+    const side = index % 2 === 0 ? 1 : -1;
+    if (side === 1) {
+      rightRow = placeBranch(node, side, 1, rightRow, childrenByParent);
+    } else {
+      leftRow = placeBranch(node, side, 1, leftRow, childrenByParent);
+    }
+  });
+
+  return graphData;
+};
+
+const placeBranch = (
+  node: any,
+  side: number,
+  depth: number,
+  row: number,
+  childrenByParent: Map<string, any[]>
+) => {
+  const children = (childrenByParent.get(String(node.id)) || []).filter(Boolean);
+  const startRow = row;
+  let nextRow = row;
+
+  children.forEach((child) => {
+    nextRow = placeBranch(child, side, depth + 1, nextRow, childrenByParent);
+  });
+
+  const childRows = children
+    .map(child => Number(child.y))
+    .filter(value => Number.isFinite(value));
+  const y = childRows.length
+    ? childRows.reduce((total, value) => total + value, 0) / childRows.length
+    : getBranchY(side, startRow);
+
+  node.x = side * depth * BIDIRECTIONAL_DEPTH_GAP;
+  node.y = y;
+  node.fixed = true;
+  node.data = {
+    ...(node.data || {}),
+    branchSide: side === 1 ? 'right' : 'left'
+  };
+
+  return children.length ? nextRow : nextRow + 1;
+};
+
+const getBranchY = (side: number, row: number) => {
+  const offsetRow = row + 1;
+  return side === 1 ? offsetRow * BIDIRECTIONAL_ROW_GAP : -offsetRow * BIDIRECTIONAL_ROW_GAP;
 };
 
 // 计算当前双向树布局配置 - 只使用水平布局
@@ -307,7 +391,7 @@ const loadRealGraphData = async () => {
     })).filter(line => line.from && line.to);
 
     // 5. 构建图谱数据
-    const graphData = buildGraphData(nodes, processedNodes, processedLines);
+    const graphData = applyBidirectionalPositions(buildGraphData(nodes, processedNodes, processedLines));
 
     console.log('BidirectionalTreeLayoutComponent: 真实数据构建完成:', graphData);
 
@@ -331,11 +415,12 @@ const renderBidirectionalTree = async (graphData: any) => {
   const graphInstance = bidirectionalTreeRef.value?.getInstance();
   if (graphInstance) {
     try {
+      const positionedGraphData = applyBidirectionalPositions(graphData);
       // 根据实际数据动态调整布局参数
-      const nodeCount = graphData.nodes ? graphData.nodes.length : 0;
-      const maxDepth = calculateMaxDepth(graphData);
+      const nodeCount = positionedGraphData.nodes ? positionedGraphData.nodes.length : 0;
+      const maxDepth = calculateMaxDepth(positionedGraphData);
       const dynamicParams = getDynamicLayoutOptions(nodeCount, maxDepth);
-      const maxNodeSize = getMaxRelationGraphNodeSize(graphData.nodes || []);
+      const maxNodeSize = getMaxRelationGraphNodeSize(positionedGraphData.nodes || []);
 
       // 更新布局配置
       const updatedOptions = { ...currentBidirectionalOptions.value };
@@ -349,7 +434,7 @@ const renderBidirectionalTree = async (graphData: any) => {
       updatedOptions.defaultNodeHeight = Math.max(dynamicParams.nodeHeight, maxNodeSize.height);
 
       await graphInstance.setOptions(updatedOptions);
-      await graphInstance.setJsonData(graphData);
+      await graphInstance.setJsonData(positionedGraphData);
 
       // 处理双向树的特殊样式 - 简化版本，先确保颜色能改变
       const leftNodes: RGNode[] = [];
@@ -357,13 +442,13 @@ const renderBidirectionalTree = async (graphData: any) => {
 
       for (const node of graphInstance.getNodes()) {
         const oldColor = node.color;
-        if (node.lot && node.lot.level! < 0) {
+        if (node.data?.branchSide === 'left') {
           // 左侧节点：红色系
           node.color = '#fecaca'; // 浅红色
           node.borderColor = '#ef4444';
           console.log(`左侧节点 ${node.id}: ${oldColor} -> ${node.color}`);
           leftNodes.push(node);
-        } else if (node.lot && node.lot.level! > 0) {
+        } else if (node.data?.branchSide === 'right') {
           // 右侧节点：蓝色系
           node.color = '#bfdbfe'; // 浅蓝色
           node.borderColor = '#3b82f6';
