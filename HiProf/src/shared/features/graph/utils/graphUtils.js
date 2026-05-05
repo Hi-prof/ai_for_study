@@ -1,3 +1,5 @@
+import { applyRelationGraphNodeTextLayout } from './nodeTextLayout.js';
+
 // 图谱工具函数
 
 // AI搜索知识点内容
@@ -145,13 +147,20 @@ export const processNodeData = async (nodes, getNodeStyle) => {
         fontColor: style?.fontColor || '#333333'
       };
 
-      console.log(`graphUtils: 节点 ${node.id} 处理完成:`, processedNode);
-      return processedNode;
+      const textLayoutNode = applyRelationGraphNodeTextLayout(processedNode, {
+        minWidth: 96,
+        maxWidth: 180,
+        minHeight: 64,
+        horizontalPadding: 18
+      });
+
+      console.log(`graphUtils: 节点 ${node.id} 处理完成:`, textLayoutNode);
+      return textLayoutNode;
 
     } catch (error) {
       console.error(`graphUtils: 处理节点 ${node.id} 失败:`, error);
       // 返回最基本的节点结构，确保不会因为单个节点失败而影响整个图谱
-      return {
+      return applyRelationGraphNodeTextLayout({
         id: node.id.toString(),
         text: node.name || `节点${node.id}`,
         data: {
@@ -161,7 +170,12 @@ export const processNodeData = async (nodes, getNodeStyle) => {
         type: 'default',
         color: '#4299e1',
         fontColor: '#333333'
-      };
+      }, {
+        minWidth: 96,
+        maxWidth: 180,
+        minHeight: 64,
+        horizontalPadding: 18
+      });
     }
   });
 

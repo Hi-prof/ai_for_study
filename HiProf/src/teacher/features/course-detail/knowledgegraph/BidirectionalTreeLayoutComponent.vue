@@ -28,6 +28,10 @@ import RelationGraph, {
 } from 'relation-graph-vue3';
 import { getKnowledgeGraphNodes, getNodeLines } from '@/api/node';
 import { VIRTUAL_ROOT_NODE_ID, isVirtualRootNode, resolveTopLevelNodeIds } from './graphRootUtils';
+import {
+  applyRelationGraphNodeTextLayout,
+  getMaxRelationGraphNodeSize
+} from '@/shared/features/graph/utils/nodeTextLayout';
 
 // 定义 props
 interface Props {
@@ -76,7 +80,7 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedNodes
     };
   }
 
-  const virtualRootNode = {
+  const virtualRootNode = applyRelationGraphNodeTextLayout({
     id: VIRTUAL_ROOT_NODE_ID,
     text: props.courseName || '课程知识图谱',
     borderColor: '#f59e0b',
@@ -87,7 +91,7 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedNodes
       category: 'virtual-root',
       isVirtualRoot: true
     }
-  };
+  });
 
   const virtualLinks = stableRootIds.map((rootId, index) => ({
     from: VIRTUAL_ROOT_NODE_ID,
@@ -272,7 +276,7 @@ const loadRealGraphData = async () => {
     console.log('BidirectionalTreeLayoutComponent: 获取到节点数据，数量:', nodes.length);
 
     // 2. 处理节点数据
-    const processedNodes = nodes.map(node => ({
+    const processedNodes = nodes.map(node => applyRelationGraphNodeTextLayout({
       id: node.id.toString(),
       text: node.name || `节点${node.id}`,
       borderColor: '#94a3b8',
@@ -331,17 +335,18 @@ const renderBidirectionalTree = async (graphData: any) => {
       const nodeCount = graphData.nodes ? graphData.nodes.length : 0;
       const maxDepth = calculateMaxDepth(graphData);
       const dynamicParams = getDynamicLayoutOptions(nodeCount, maxDepth);
+      const maxNodeSize = getMaxRelationGraphNodeSize(graphData.nodes || []);
 
       // 更新布局配置
       const updatedOptions = { ...currentBidirectionalOptions.value };
       if (updatedOptions.layout) {
-        updatedOptions.layout.min_per_width = dynamicParams.minPerWidth;
+        updatedOptions.layout.min_per_width = Math.max(dynamicParams.minPerWidth, maxNodeSize.width + 120);
         updatedOptions.layout.max_per_width = dynamicParams.maxPerWidth;
-        updatedOptions.layout.min_per_height = dynamicParams.minPerHeight;
+        updatedOptions.layout.min_per_height = Math.max(dynamicParams.minPerHeight, maxNodeSize.height + 40);
         updatedOptions.layout.max_per_height = dynamicParams.maxPerHeight;
       }
-      updatedOptions.defaultNodeWidth = dynamicParams.nodeWidth;
-      updatedOptions.defaultNodeHeight = dynamicParams.nodeHeight;
+      updatedOptions.defaultNodeWidth = Math.max(dynamicParams.nodeWidth, maxNodeSize.width);
+      updatedOptions.defaultNodeHeight = Math.max(dynamicParams.nodeHeight, maxNodeSize.height);
 
       await graphInstance.setOptions(updatedOptions);
       await graphInstance.setJsonData(graphData);
@@ -498,12 +503,8 @@ defineExpose({
 ::v-deep(.layout-bidirectional-tree .rel-node > div),
 ::v-deep(.layout-bidirectional-tree .rel-node-peel > div),
 ::v-deep(.layout-bidirectional-tree .rel-nodediv > div) {
-  width: 150px !important;  /* 更长的节点宽度，3:1比例 */
-  height: 50px !important;
+  box-sizing: border-box !important;
   border-radius: 8px !important;
-  border: 2px solid #94a3b8 !important;
-  background-color: #bfdbfe !important; /* 强制浅蓝色背景，测试是否生效 */
-  background: #bfdbfe !important; /* 双重保险 */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
   transition: all 0.3s ease !important;
 }
@@ -550,6 +551,23 @@ defineExpose({
   fill: #6b7280 !important;
   font-size: 10px !important;
   font-weight: normal !important;
+}
+
+::v-deep(.kg-node-label) {
+  box-sizing: border-box;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  height: 100%;
+  padding: 4px 8px;
+  line-height: 20px;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 
 
