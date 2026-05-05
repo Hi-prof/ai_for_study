@@ -9,14 +9,14 @@
 .rel-node-peel,
 .rel-node-peel-checked,
 .rel-nodediv {
-  transition: all 0.3s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
   border: none;
   outline: none;
 }
 
 /* 基础连线样式 */
 .rel-line {
-  transition: all 0.2s ease;
+  transition: stroke 0.2s ease, stroke-width 0.2s ease, opacity 0.2s ease;
 }
 
 /* 通用文本样式 */

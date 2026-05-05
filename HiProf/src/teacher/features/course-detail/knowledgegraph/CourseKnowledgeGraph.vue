@@ -10,14 +10,6 @@
           进入大纲编辑
         </button>
         <button
-          class="btn btn-settings"
-          @click="openSettingsDialog"
-          :disabled="!currentKnowledgeGraph || loading"
-          title="知识图谱设置"
-        >
-          设置
-        </button>
-        <button
           class="btn btn-ai-generate"
           @click="aiSmartGenerate"
           :disabled="loading"
@@ -55,8 +47,6 @@
             </button>
           </div>
         </div>
-
-
       </div>
     </div>
 
@@ -133,16 +123,6 @@
         {{ loading ? '正在跳转...' : 'AI 生成知识图谱' }}
       </button>
     </div>
-
-    <!-- 知识图谱设置对话框 -->
-    <KnowledgeGraphSettingsDialog
-      v-model="showSettingsDialog"
-      :course-id="courseId"
-      :knowledge-graph="currentKnowledgeGraph"
-      @settings-updated="handleSettingsUpdated"
-    />
-
-
   </div>
 </template>
 
@@ -152,7 +132,6 @@ import { useRouter } from 'vue-router';
 import { getCourseKnowledgeGraphList, updateNode } from '@/api/graph';
 import { getNodeDetail } from '@/api/node';
 import { getCourseById } from '@/api/courses';
-import KnowledgeGraphSettingsDialog from './KnowledgeGraphSettingsDialog.vue';
 import TreeLayoutComponent from './TreeLayoutComponent.vue';
 import CenterLayoutComponent from './CenterLayoutComponent.vue';
 import BidirectionalTreeLayoutComponent from './BidirectionalTreeLayoutComponent.vue';
@@ -176,7 +155,6 @@ const emit = defineEmits(['refresh']);
 const loading = ref(false);
 const knowledgeGraphList = ref([]);
 const currentKnowledgeGraph = ref(null);
-const showSettingsDialog = ref(false); // 设置对话框显示状态
 const showNodeEditDialog = ref(false); // 节点编辑面板显示状态
 const selectedNode = ref(null); // 当前选中的节点
 const courseName = ref('课程知识图谱');
@@ -281,12 +259,6 @@ const switchLayoutType = async (layoutType) => {
   }
 };
 
-
-
-
-
-
-
 // 进入大纲编辑
 const goToOutline = () => {
   if (currentKnowledgeGraph.value) {
@@ -301,32 +273,6 @@ const goToOutline = () => {
 const aiSmartGenerate = () => {
   // 跳转到AI生成知识图谱页面
   router.push(`/teacher/course/${props.courseId}/ai-knowledge-graph`);
-};
-
-// 打开设置对话框
-const openSettingsDialog = () => {
-  if (currentKnowledgeGraph.value) {
-    showSettingsDialog.value = true;
-  } else {
-    alert('请先生成知识图谱');
-  }
-};
-
-// 处理设置更新
-const handleSettingsUpdated = (newSettings) => {
-  console.log('CourseKnowledgeGraph: 收到设置更新:', newSettings);
-
-  // 更新图谱设置
-  if (newSettings) {
-    Object.assign(graphSettings.value, newSettings);
-  }
-
-  // 如果切换到iframe模式，需要刷新iframe
-  if (graphSettings.value.layoutType !== 'real-tree') {
-    refreshKnowledgeGraph();
-  }
-
-  console.log('CourseKnowledgeGraph: 当前设置:', graphSettings.value);
 };
 
 // 处理树形布局节点点击

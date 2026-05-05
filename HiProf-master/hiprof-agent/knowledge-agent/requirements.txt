@@ -1,6 +1,7 @@
 fastapi==0.116.1
 uvicorn[standard]==0.35.0
 pydantic==2.11.7
+PyMuPDF==1.27.2.3
 pypdf==5.9.0
 python-dotenv==1.1.1
 python-multipart==0.0.20

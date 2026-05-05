@@ -1,11 +1,54 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 import unittest
 
+import fitz
+
 from app import agent as agent_module
+from app import pdf_parser
 from app.agent import KnowledgeGraphAgent
 from app.document_parser import parse_document
 from app.models import GenerationRequest, GraphNode, TaskRecord
+
+
+def build_text_pdf(*page_texts: str) -> bytes:
+    document = fitz.open()
+    for text in page_texts:
+        page = document.new_page(width=420, height=595)
+        page.insert_text((72, 72), text, fontsize=12)
+    content = document.tobytes()
+    document.close()
+    return content
+
+
+def build_table_pdf() -> bytes:
+    document = fitz.open()
+    page = document.new_page(width=300, height=200)
+    for x in (50, 150, 250):
+        page.draw_line((x, 50), (x, 130))
+    for y in (50, 90, 130):
+        page.draw_line((50, y), (250, y))
+    page.insert_text((60, 75), "Name")
+    page.insert_text((160, 75), "Value")
+    page.insert_text((60, 115), "A")
+    page.insert_text((160, 115), "1")
+    content = document.tobytes()
+    document.close()
+    return content
+
+
+def build_image_pdf() -> bytes:
+    pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 40, 20), False)
+    pixmap.clear_with(255)
+    image = pixmap.tobytes("png")
+
+    document = fitz.open()
+    page = document.new_page(width=300, height=200)
+    page.insert_image(page.rect, stream=image)
+    content = document.tobytes()
+    document.close()
+    return content
 
 
 class KnowledgeGraphAgentTest(unittest.TestCase):
@@ -148,6 +191,45 @@ class KnowledgeGraphAgentTest(unittest.TestCase):
         self.assertEqual("txt", parsed["fileType"])
         self.assertIn("=== 课程资料.txt 全文 ===", parsed["text"])
         self.assertIn("第一章 课程导论", parsed["text"])
+
+    def test_parse_document_extracts_pdf_text_with_page_metadata(self) -> None:
+        parsed = parse_document(
+            "课程资料.pdf",
+            build_text_pdf("Chapter 1 Course Introduction", "Chapter 2 Knowledge Building"),
+        )
+
+        self.assertEqual("课程资料.pdf", parsed["fileName"])
+        self.assertEqual("pdf", parsed["fileType"])
+        self.assertEqual(2, parsed["pageCount"])
+        self.assertEqual(0, parsed["ocrPageCount"])
+        self.assertIn("=== 课程资料.pdf 第 1 页 ===", parsed["text"])
+        self.assertIn("Chapter 1 Course Introduction", parsed["text"])
+        self.assertEqual("text_layer", parsed["sections"][0]["method"])
+
+    def test_parse_document_extracts_pdf_tables_as_markdown(self) -> None:
+        parsed = parse_document("表格资料.pdf", build_table_pdf())
+
+        self.assertEqual(1, parsed["tableCount"])
+        self.assertIn("|Name|Value|", parsed["text"])
+        self.assertIn("|A|1|", parsed["text"])
+        self.assertEqual("hybrid", parsed["sections"][0]["method"])
+
+    def test_parse_document_reports_ocr_required_when_disabled(self) -> None:
+        original_settings = pdf_parser.settings
+        pdf_parser.settings = SimpleNamespace(
+            pdf_ocr_enabled=False,
+            pdf_ocr_language="chi_sim+eng",
+            pdf_ocr_tessdata="",
+            pdf_ocr_dpi=200,
+            pdf_min_text_chars=20,
+            pdf_extract_tables=False,
+        )
+
+        try:
+            with self.assertRaisesRegex(ValueError, "OCR 未启用"):
+                parse_document("扫描资料.pdf", build_image_pdf())
+        finally:
+            pdf_parser.settings = original_settings
 
     def test_attach_source_refs_prefers_matching_section(self) -> None:
         agent = KnowledgeGraphAgent()

@@ -33,6 +33,9 @@
                 <i class="close-icon"></i>
               </button>
             </div>
+            <div v-if="uploadedParseWarnings.length" class="upload-support-text">
+              解析提醒：{{ uploadedParseWarnings.join('；') }}
+            </div>
           </div>
 
           <div class="input-divider"></div>
@@ -118,6 +121,7 @@ const isUploading = ref(false);
 const uploadedFileName = ref('');
 const uploadedFileContent = ref('');
 const uploadedParsedSource = ref(null);
+const uploadedParseWarnings = ref([]);
 
 // 文件上传相关方法
 const triggerFileUpload = () => {
@@ -145,6 +149,7 @@ const handleFileUpload = async (event) => {
     uploadedFileName.value = file.name;
     uploadedFileContent.value = content;
     uploadedParsedSource.value = parsedSource;
+    uploadedParseWarnings.value = Array.isArray(parsedSource.warnings) ? parsedSource.warnings : [];
     console.log(`后端解析成功: ${file.name} (${getFileTypeName(file.name)}, ${formatFileSize(file.size)})`);
 
   } catch (error) {
@@ -153,6 +158,7 @@ const handleFileUpload = async (event) => {
     uploadedFileName.value = '';
     uploadedFileContent.value = '';
     uploadedParsedSource.value = null;
+    uploadedParseWarnings.value = [];
   } finally {
     isUploading.value = false;
     // 清空文件输入，允许重新选择同一文件
@@ -177,6 +183,7 @@ const removeUploadedFile = () => {
   uploadedFileName.value = '';
   uploadedFileContent.value = '';
   uploadedParsedSource.value = null;
+  uploadedParseWarnings.value = [];
 };
 
 const getFileExtension = (fileName) => `.${String(fileName).split('.').pop().toLowerCase()}`;

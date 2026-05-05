@@ -44,14 +44,15 @@ export const applyRelationGraphNodeTextLayout = (node, options = {}) => {
   const displayText = String(node.text || node.name || node.label || '').trim();
   const metrics = measureRelationGraphNodeText(displayText, options);
   const nodeHtml = buildRelationGraphNodeHtml(displayText);
+  const borderWidth = node.borderWidth ?? (node.borderColor ? 2 : undefined);
 
   return {
     ...node,
     text: displayText,
     width: metrics.width,
     height: metrics.height,
+    ...(borderWidth === undefined ? {} : { borderWidth }),
     innerHTML: nodeHtml,
-    html: nodeHtml,
     data: {
       ...(node.data || {}),
       fullText: displayText,

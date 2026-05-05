@@ -6,7 +6,7 @@ from io import BytesIO
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
-from pypdf import PdfReader
+from .pdf_parser import parse_pdf_document
 
 
 MAX_FILE_SIZE = 50 * 1024 * 1024
@@ -25,10 +25,18 @@ def parse_document(filename: str, content: bytes) -> dict:
         supported = "、".join(sorted(ALLOWED_EXTENSIONS))
         raise ValueError(f"不支持的文件类型: {extension}，支持格式: {supported}")
 
+    parser_metadata = {}
     if extension == ".txt":
         sections = _parse_txt(source_name, content)
     elif extension == ".pdf":
-        sections = _parse_pdf(source_name, content)
+        parsed_pdf = parse_pdf_document(source_name, content)
+        sections = parsed_pdf["sections"]
+        parser_metadata = {
+            "pageCount": parsed_pdf["pageCount"],
+            "ocrPageCount": parsed_pdf["ocrPageCount"],
+            "tableCount": parsed_pdf["tableCount"],
+            "warnings": parsed_pdf["warnings"],
+        }
     elif extension == ".docx":
         sections = _parse_docx(source_name, content)
     else:
@@ -39,7 +47,7 @@ def parse_document(filename: str, content: bytes) -> dict:
         raise ValueError("文档内容为空或无法提取可用文本")
 
     text = "\n\n".join(_format_section(section) for section in usable_sections)
-    return {
+    result = {
         "fileName": source_name,
         "fileType": extension.lstrip("."),
         "text": text,
@@ -47,6 +55,8 @@ def parse_document(filename: str, content: bytes) -> dict:
         "sectionCount": len(usable_sections),
         "charCount": len(text),
     }
+    result.update(parser_metadata)
+    return result
 
 
 def _parse_txt(source_name: str, content: bytes) -> list[dict]:
@@ -57,29 +67,6 @@ def _parse_txt(source_name: str, content: bytes) -> list[dict]:
             "text": _decode_text(content),
         }
     ]
-
-
-def _parse_pdf(source_name: str, content: bytes) -> list[dict]:
-    try:
-        reader = PdfReader(BytesIO(content))
-    except Exception as exc:
-        raise ValueError("PDF 文件损坏或格式异常，无法解析") from exc
-
-    if reader.is_encrypted:
-        raise ValueError("PDF 文件已加密，暂不支持直接解析")
-
-    sections = []
-    for index, page in enumerate(reader.pages, start=1):
-        page_text = _clean_text(page.extract_text() or "")
-        if page_text:
-            sections.append(
-                {
-                    "sourceName": source_name,
-                    "locator": f"第 {index} 页",
-                    "text": page_text,
-                }
-            )
-    return sections
 
 
 def _parse_docx(source_name: str, content: bytes) -> list[dict]:

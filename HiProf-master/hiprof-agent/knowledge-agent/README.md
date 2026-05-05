@@ -31,8 +31,16 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 18081
 - `KNOWLEDGE_AGENT_COURSE_TOPIC_BATCH_SIZE`: top-level topics per lower-level expansion request, defaults to `2`
 - `KNOWLEDGE_AGENT_LIGHT_CARD_BATCH_SIZE`: nodes per lightweight-card request, defaults to `12`
 - `KNOWLEDGE_AGENT_LIGHT_CARD_CONCURRENCY`: concurrent lightweight-card requests, defaults to `2`
+- `KNOWLEDGE_AGENT_PDF_OCR_ENABLED`: enable OCR for scanned PDF pages, defaults to `true`
+- `KNOWLEDGE_AGENT_PDF_OCR_LANGUAGE`: Tesseract OCR language, defaults to `chi_sim+eng`
+- `KNOWLEDGE_AGENT_PDF_OCR_TESSDATA`: optional Tesseract `tessdata` directory path
+- `KNOWLEDGE_AGENT_PDF_OCR_DPI`: OCR render DPI, defaults to `200`
+- `KNOWLEDGE_AGENT_PDF_MIN_TEXT_CHARS`: minimum text-layer characters before OCR is skipped, defaults to `20`
+- `KNOWLEDGE_AGENT_PDF_EXTRACT_TABLES`: extract PDF tables as Markdown, defaults to `true`
 
 `KNOWLEDGE_AGENT_API_KEY` is required for graph and card generation.
+
+Scanned PDFs require a local Tesseract installation and the configured language data. If OCR is needed but unavailable, document parsing fails with a page-level error instead of silently returning empty content.
 
 ## API
 

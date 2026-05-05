@@ -10,6 +10,13 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(frozen=True)
 class Settings:
     api_key: str = os.getenv("KNOWLEDGE_AGENT_API_KEY", "")
@@ -40,6 +47,12 @@ class Settings:
             "KNOWLEDGE_AGENT_STORAGE_DIR", Path(__file__).resolve().parents[1] / "data"
         )
     )
+    pdf_ocr_enabled: bool = _env_bool("KNOWLEDGE_AGENT_PDF_OCR_ENABLED", True)
+    pdf_ocr_language: str = os.getenv("KNOWLEDGE_AGENT_PDF_OCR_LANGUAGE", "chi_sim+eng")
+    pdf_ocr_tessdata: str = os.getenv("KNOWLEDGE_AGENT_PDF_OCR_TESSDATA", "")
+    pdf_ocr_dpi: int = int(os.getenv("KNOWLEDGE_AGENT_PDF_OCR_DPI", "200"))
+    pdf_min_text_chars: int = int(os.getenv("KNOWLEDGE_AGENT_PDF_MIN_TEXT_CHARS", "20"))
+    pdf_extract_tables: bool = _env_bool("KNOWLEDGE_AGENT_PDF_EXTRACT_TABLES", True)
 
 
 settings = Settings()

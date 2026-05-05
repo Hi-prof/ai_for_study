@@ -19,39 +19,37 @@
     </div>
     <div class="panel-content">
       <div v-if="isStructuredContent" class="agent-card-section">
-        <div class="knowledge-card-toolbar">
-          <div class="knowledge-card-meta">
+        <div
+          class="knowledge-card-frame"
+          :class="{ 'is-editing': isKnowledgeCardEditing }"
+        >
+          <div class="knowledge-card-header">
             <span class="save-status compact" :class="saveStatusClass">{{ saveStatusText }}</span>
+            <button
+              class="knowledge-card-edit-button"
+              type="button"
+              @click="toggleKnowledgeCardEditing"
+            >
+              {{ isKnowledgeCardEditing ? '完成' : '编辑' }}
+            </button>
           </div>
-        </div>
-        <div v-if="structuredCardFields.length > 0" class="knowledge-card-frame">
-          <div v-for="field in structuredCardFields" :key="field.key" class="card-field">
-            <input
-              :id="`${field.key}-label`"
-              class="card-label-input"
-              type="text"
-              :value="field.label"
-              @input="updateStructuredFieldLabel(field, ($event.target as HTMLInputElement).value)"
-            />
-            <input
-              v-if="field.inputType === 'input'"
-              :id="field.key"
-              class="card-field-input"
-              type="text"
-              :value="field.value"
-              @input="updateStructuredField(field, ($event.target as HTMLInputElement).value)"
-            />
+          <div class="knowledge-card-body">
             <textarea
-              v-else
-              :id="field.key"
-              class="card-field-input card-field-textarea"
-              :rows="field.rows"
-              :value="field.value"
-              @input="updateStructuredField(field, ($event.target as HTMLTextAreaElement).value)"
+              v-if="isKnowledgeCardEditing"
+              id="knowledge-card-markdown"
+              class="knowledge-card-editor"
+              :value="knowledgeCardMarkdown"
+              placeholder="可直接编辑整张知识卡片，例如：&#10;**定义**&#10;这里写定义内容&#10;&#10;**示例**&#10;这里写示例内容"
+              @input="updateKnowledgeCardMarkdown(($event.target as HTMLTextAreaElement).value)"
             ></textarea>
+            <div
+              v-else
+              class="knowledge-card-markdown"
+              :class="{ empty: !knowledgeCardMarkdown.trim() }"
+              v-html="renderedKnowledgeCardMarkdown"
+            ></div>
           </div>
         </div>
-        <div v-else class="empty-card-state">暂无卡片内容</div>
       </div>
 
       <div v-else class="node-content">
@@ -183,12 +181,9 @@ interface SaveOptions {
 }
 
 interface StructuredCardField {
-  key: string;
   defaultLabel: string;
   section: 'lightweightCard' | 'deepCard';
   property: string;
-  inputType: 'input' | 'textarea';
-  rows: number;
   isList?: boolean;
 }
 
@@ -223,6 +218,7 @@ const resources = ref<any[]>([]);
 const contentLength = ref(0);
 const fileInput = ref<HTMLInputElement | null>(null);
 const isOptimizingCard = ref(false);
+const isKnowledgeCardEditing = ref(false);
 const isFilesSectionExpanded = ref(false);
 const isSaving = ref(false);
 const saveState = ref<'idle' | 'saving' | 'saved' | 'error'>('saved');
@@ -279,28 +275,17 @@ const joinList = (value: unknown) => {
   return value.map(item => String(item)).filter(Boolean).join('、');
 };
 
-const splitList = (value: string) => {
-  if (!value) {
-    return [];
-  }
-
-  return value
-    .split(/[\n,，、;；]+/)
-    .map(item => item.trim())
-    .filter(Boolean);
-};
-
 const structuredCardFieldDefinitions: StructuredCardField[] = [
-  { key: 'definition', defaultLabel: '定义', section: 'lightweightCard', property: 'definition', inputType: 'textarea', rows: 3 },
-  { key: 'keywords', defaultLabel: '关键词', section: 'lightweightCard', property: 'keywords', inputType: 'input', rows: 1, isList: true },
-  { key: 'example', defaultLabel: '示例', section: 'lightweightCard', property: 'example', inputType: 'textarea', rows: 3 },
-  { key: 'relatedKnowledge', defaultLabel: '关联知识', section: 'lightweightCard', property: 'relatedKnowledge', inputType: 'input', rows: 1, isList: true },
-  { key: 'detailedDefinition', defaultLabel: '深入解析', section: 'deepCard', property: 'detailedDefinition', inputType: 'textarea', rows: 4 },
-  { key: 'coreFeatures', defaultLabel: '核心特征', section: 'deepCard', property: 'coreFeatures', inputType: 'input', rows: 1, isList: true },
-  { key: 'applicationScenarios', defaultLabel: '应用场景', section: 'deepCard', property: 'applicationScenarios', inputType: 'input', rows: 1, isList: true },
-  { key: 'commonQuestions', defaultLabel: '常见问题', section: 'deepCard', property: 'commonQuestions', inputType: 'textarea', rows: 3, isList: true },
-  { key: 'relatedExplanation', defaultLabel: '关联说明', section: 'deepCard', property: 'relatedExplanation', inputType: 'textarea', rows: 3 },
-  { key: 'references', defaultLabel: '参考内容', section: 'deepCard', property: 'references', inputType: 'textarea', rows: 3, isList: true }
+  { defaultLabel: '定义', section: 'lightweightCard', property: 'definition' },
+  { defaultLabel: '关键词', section: 'lightweightCard', property: 'keywords', isList: true },
+  { defaultLabel: '示例', section: 'lightweightCard', property: 'example' },
+  { defaultLabel: '关联知识', section: 'lightweightCard', property: 'relatedKnowledge', isList: true },
+  { defaultLabel: '深入解析', section: 'deepCard', property: 'detailedDefinition' },
+  { defaultLabel: '核心特征', section: 'deepCard', property: 'coreFeatures', isList: true },
+  { defaultLabel: '应用场景', section: 'deepCard', property: 'applicationScenarios', isList: true },
+  { defaultLabel: '常见问题', section: 'deepCard', property: 'commonQuestions', isList: true },
+  { defaultLabel: '关联说明', section: 'deepCard', property: 'relatedExplanation' },
+  { defaultLabel: '参考内容', section: 'deepCard', property: 'references', isList: true }
 ];
 
 const hasOptimizedCard = computed(() => !!structuredNode.value?.deepCard);
@@ -329,6 +314,39 @@ const structuredCardFields = computed(() => {
       };
     });
 });
+
+const buildDefaultKnowledgeCardMarkdown = () => {
+  return structuredCardFields.value
+    .map(field => `**${field.label}**\n${field.value || '暂无内容'}`)
+    .join('\n\n');
+};
+
+const knowledgeCardMarkdown = computed(() => {
+  const customCardMarkdown = structuredNode.value?.customCardMarkdown;
+  if (typeof customCardMarkdown === 'string') {
+    return customCardMarkdown;
+  }
+
+  return buildDefaultKnowledgeCardMarkdown();
+});
+
+const htmlEscapeMap: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+};
+
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, char => htmlEscapeMap[char] || char);
+const renderedKnowledgeCardMarkdown = computed(() => {
+  const source = knowledgeCardMarkdown.value.trim() || '暂无卡片内容';
+  return escapeHtml(source)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>');
+});
+
+const stripMarkdownBold = (value: string) => value.replace(/\*\*(.+?)\*\*/g, '$1');
 
 const normalizedStructuredContent = computed(() => {
   if (!isStructuredContent.value || !structuredNode.value) {
@@ -365,7 +383,7 @@ const saveStatusClass = computed(() => ({
   saved: saveState.value === 'saved',
 }));
 
-const updateStructuredField = (field: StructuredCardField, nextValue: string) => {
+const updateKnowledgeCardMarkdown = (nextValue: string) => {
   const currentStructuredNode = structuredNode.value;
   if (!currentStructuredNode) {
     return;
@@ -373,35 +391,7 @@ const updateStructuredField = (field: StructuredCardField, nextValue: string) =>
 
   const nextStructuredNode = {
     ...currentStructuredNode,
-    [field.section]: {
-      ...(currentStructuredNode[field.section] || {}),
-      [field.property]: field.isList ? splitList(nextValue) : nextValue
-    }
-  };
-
-  rawContent.value = JSON.stringify(nextStructuredNode);
-};
-
-const updateStructuredFieldLabel = (field: StructuredCardField, nextLabel: string) => {
-  const currentStructuredNode = structuredNode.value;
-  if (!currentStructuredNode) {
-    return;
-  }
-
-  const trimmedLabel = nextLabel.trim();
-  const nextFieldLabels = {
-    ...(currentStructuredNode.fieldLabels || {}),
-  };
-
-  if (trimmedLabel && trimmedLabel !== field.defaultLabel) {
-    nextFieldLabels[field.property] = trimmedLabel;
-  } else {
-    delete nextFieldLabels[field.property];
-  }
-
-  const nextStructuredNode = {
-    ...currentStructuredNode,
-    fieldLabels: nextFieldLabels
+    customCardMarkdown: nextValue,
   };
 
   rawContent.value = JSON.stringify(nextStructuredNode);
@@ -477,6 +467,20 @@ const flushPendingSave = async (options: SaveOptions = {}) => {
   }
 };
 
+const toggleKnowledgeCardEditing = async () => {
+  if (!isKnowledgeCardEditing.value) {
+    isKnowledgeCardEditing.value = true;
+    return;
+  }
+
+  try {
+    await flushPendingSave({ refreshGraph: false, showError: false });
+    isKnowledgeCardEditing.value = false;
+  } catch (error: any) {
+    alert(error?.message || '自动保存失败，请稍后重试');
+  }
+};
+
 const scheduleAutoSave = () => {
   if (isHydratingNode.value || currentSnapshot.value === lastSavedSnapshot.value) {
     return;
@@ -505,6 +509,7 @@ watch(() => props.node, (newNode) => {
     content.value = isStructuredContent.value ? '' : rawContent.value;
     resources.value = newNode.resources || [];
     imageResult.value = null; // Reset image result on node change
+    isKnowledgeCardEditing.value = false;
     isFilesSectionExpanded.value = false;
     resetSaveState();
     isHydratingNode.value = false;
@@ -550,6 +555,13 @@ const buildOptimizationSourceText = () => {
   const structured = structuredNode.value;
   if (!structured) {
     return title.value || '';
+  }
+
+  if (typeof structured.customCardMarkdown === 'string' && structured.customCardMarkdown.trim()) {
+    return [
+      `节点标题: ${title.value || structured.title || ''}`,
+      stripMarkdownBold(structured.customCardMarkdown)
+    ].filter(Boolean).join('\n');
   }
 
   const definitionLabel = getStructuredFieldLabel('definition', '定义');
@@ -826,10 +838,7 @@ onBeforeUnmount(() => {
 
 .agent-card-section {
   margin-bottom: 16px;
-  padding: 16px;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #f8fbff;
+  padding: 0;
 }
 
 .save-status {
@@ -870,18 +879,6 @@ onBeforeUnmount(() => {
   padding-right: 84px !important;
 }
 
-.knowledge-card-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 12px;
-}
-
-.knowledge-card-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .plain-content-toolbar {
   justify-content: flex-end;
 }
@@ -912,10 +909,6 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
-.card-block + .card-block {
-  margin-top: 16px;
-}
-
 .generate-deep-card-button {
   padding: 6px 12px;
   border: 1px solid #93c5fd;
@@ -937,80 +930,92 @@ onBeforeUnmount(() => {
 }
 
 .knowledge-card-frame {
-  border: 1px solid #dbe7f5;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.92);
-  overflow: hidden;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
-}
-
-.card-field {
-  padding: 14px 16px;
-  transition: background-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.card-field + .card-field {
-  border-top: 1px solid #e2e8f0;
-}
-
-.card-field:focus-within {
-  background: #f8fbff;
-  box-shadow: inset 3px 0 0 #93c5fd;
-}
-
-.card-item-label {
-  display: block;
-  margin-bottom: 6px;
-  color: #475569;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.card-label-input {
-  display: inline-flex;
-  width: fit-content;
-  min-width: 96px;
-  max-width: 100%;
-  margin-bottom: 10px;
-  padding: 6px 14px;
-  border: 1px solid #d6e4ff;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 100%);
-  color: #31507a;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.4;
-  letter-spacing: 0.02em;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, color 0.2s ease;
-}
-
-.card-label-input:focus {
-  outline: none;
-  color: #1d4ed8;
-  border-color: #93c5fd;
+  border: 1px solid #d8e3f2;
+  border-radius: 10px;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.22);
+  overflow: hidden;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
-.card-field-input {
+.knowledge-card-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid #e6edf6;
+  background: #fbfdff;
+}
+
+.knowledge-card-edit-button {
+  min-width: 54px;
+  padding: 6px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.knowledge-card-edit-button:hover {
+  border-color: #93c5fd;
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.knowledge-card-frame.is-editing .knowledge-card-edit-button {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.knowledge-card-body {
+  padding: 16px;
+}
+
+.knowledge-card-markdown {
+  min-height: 320px;
+  padding: 4px 2px;
+  color: #1f2937;
+  font-size: 14px;
+  line-height: 1.8;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.knowledge-card-markdown :deep(strong) {
+  color: #17365d;
+  font-weight: 800;
+}
+
+.knowledge-card-markdown.empty {
+  color: #94a3b8;
+}
+
+.knowledge-card-editor {
   width: 100%;
-  padding: 0;
-  border: none;
-  background: transparent;
+  min-height: 420px;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border: 1px solid #cfe0f4;
+  border-radius: 8px;
+  background: #f8fbff;
   color: #1e293b;
   font-size: 14px;
-  line-height: 1.6;
-  transition: color 0.2s ease;
-}
-
-.card-field-input:focus {
-  outline: none;
-}
-
-.card-field-textarea {
+  line-height: 1.75;
+  font-family: inherit;
   resize: vertical;
-  min-height: 92px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.knowledge-card-editor:focus {
+  outline: none;
+  border-color: #93c5fd;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.2);
 }
 
 .node-files {

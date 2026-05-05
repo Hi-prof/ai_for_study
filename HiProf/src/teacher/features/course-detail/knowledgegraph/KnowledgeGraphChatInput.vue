@@ -40,7 +40,9 @@
           <i class="file-icon"></i>
           <div class="kg-file-main">
             <div class="kg-file-name" :title="file.name">{{ file.name }}</div>
-            <div class="kg-file-meta">{{ formatFileSize(file.size) }} · {{ getFileStatusText(file) }}</div>
+            <div class="kg-file-meta" :title="getFileWarningTitle(file)">
+              {{ formatFileSize(file.size) }} · {{ getFileStatusText(file) }}
+            </div>
           </div>
           <button
             type="button"
@@ -95,7 +97,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { parseKnowledgeGraphSourceFile } from '@/api/graph.js';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -117,6 +119,7 @@ const emit = defineEmits(['update:modelValue', 'generate', 'stop']);
 
 const fileInput = ref(null);
 const sourceFiles = ref([]);
+const fileAbortControllers = new Map();
 const uploadAccept = ALLOWED_EXTENSIONS.join(',');
 
 const canGenerate = computed(() => {
@@ -131,6 +134,7 @@ const triggerFileSelect = () => {
 
 const handleFilesSelected = async (event) => {
   const files = Array.from(event.target.files || []);
+  event.target.value = '';
 
   for (const file of files) {
     const extension = getFileExtension(file.name);
@@ -141,26 +145,42 @@ const handleFilesSelected = async (event) => {
       type: getFileTypeName(file.name),
       status: 'parsing',
       text: '',
-      error: ''
+      error: '',
+      warnings: []
     };
 
     sourceFiles.value.push(item);
+    const abortController = new AbortController();
+    fileAbortControllers.set(item.id, abortController);
 
     try {
       validateSourceFile(file, extension);
-      const response = await parseKnowledgeGraphSourceFile(file);
+      const response = await parseKnowledgeGraphSourceFile(file, abortController.signal);
+      if (!hasSourceFile(item.id)) {
+        continue;
+      }
       const parsedSource = response?.data || response || {};
-      item.text = parsedSource.text || '';
-      item.parsedSource = parsedSource;
-      item.status = item.text.trim() ? 'success' : 'error';
-      item.error = item.status === 'error' ? '文档内容为空或无法读取' : '';
+      const parsedText = parsedSource.text || '';
+      const status = parsedText.trim() ? 'success' : 'error';
+      updateSourceFile(item.id, {
+        text: parsedText,
+        parsedSource,
+        warnings: Array.isArray(parsedSource.warnings) ? parsedSource.warnings : [],
+        status,
+        error: status === 'error' ? '文档内容为空或无法读取' : ''
+      });
     } catch (error) {
-      item.status = 'error';
-      item.error = resolveUploadErrorMessage(error);
+      if (!hasSourceFile(item.id) || isCanceledUpload(error)) {
+        continue;
+      }
+      updateSourceFile(item.id, {
+        status: 'error',
+        error: resolveUploadErrorMessage(error)
+      });
+    } finally {
+      fileAbortControllers.delete(item.id);
     }
   }
-
-  event.target.value = '';
 };
 
 const validateSourceFile = (file, extension) => {
@@ -174,7 +194,23 @@ const validateSourceFile = (file, extension) => {
 };
 
 const removeFile = (fileId) => {
+  fileAbortControllers.get(fileId)?.abort();
+  fileAbortControllers.delete(fileId);
   sourceFiles.value = sourceFiles.value.filter(file => file.id !== fileId);
+};
+
+const hasSourceFile = (fileId) => sourceFiles.value.some(file => file.id === fileId);
+
+const updateSourceFile = (fileId, updates) => {
+  const fileIndex = sourceFiles.value.findIndex(file => file.id === fileId);
+  if (fileIndex === -1) {
+    return;
+  }
+
+  sourceFiles.value[fileIndex] = {
+    ...sourceFiles.value[fileIndex],
+    ...updates
+  };
 };
 
 const submit = () => {
@@ -215,8 +251,22 @@ const formatFileSize = (bytes) => {
 
 const getFileStatusText = (file) => {
   if (file.status === 'parsing') return `${file.type} 解析中`;
-  if (file.status === 'success') return `${file.type} 已解析`;
+  if (file.status === 'success') {
+    return file.warnings?.length
+      ? `${file.type} 已解析，${file.warnings.length} 条提醒`
+      : `${file.type} 已解析`;
+  }
   return file.error || '解析失败';
+};
+
+const getFileWarningTitle = (file) => {
+  return file.warnings?.length ? file.warnings.join('\n') : '';
+};
+
+const isCanceledUpload = (error) => {
+  return error?.code === 'ERR_CANCELED'
+    || error?.name === 'CanceledError'
+    || error?.message === 'canceled';
 };
 
 const resolveUploadErrorMessage = (error) => {
@@ -227,4 +277,9 @@ const resolveUploadErrorMessage = (error) => {
     || error?.message
     || '后端解析失败';
 };
+
+onBeforeUnmount(() => {
+  fileAbortControllers.forEach(controller => controller.abort());
+  fileAbortControllers.clear();
+});
 </script>

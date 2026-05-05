@@ -1,11 +1,22 @@
 <template>
   <div class="bidirectional-tree-container" :class="layoutCssClass">
-    <div style="height:calc(100vh);">
+    <div ref="fullscreenContainerRef" class="bidirectional-tree-viewport">
+      <button
+        class="graph-fullscreen-toggle"
+        type="button"
+        :title="isGraphFullscreen ? '退出全屏' : '全屏'"
+        :aria-label="isGraphFullscreen ? '退出全屏' : '全屏'"
+        @click.stop="toggleGraphFullscreen"
+      >
+        <Close v-if="isGraphFullscreen" />
+        <FullScreen v-else />
+      </button>
       <RelationGraph
         ref="bidirectionalTreeRef"
         :options="currentBidirectionalOptions"
         :on-node-click="onNodeClick"
         :on-line-click="onLineClick"
+        :on-fullscreen="handleRelationGraphFullscreen"
       >
         <template #graph-plug>
         </template>
@@ -15,7 +26,8 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { Close, FullScreen } from '@element-plus/icons-vue';
 import RelationGraph, { 
   RGJsonData, 
   RGOptions, 
@@ -115,9 +127,44 @@ const emit = defineEmits<{
 
 // 响应式数据
 const bidirectionalTreeRef = ref<RelationGraphComponent | null>(null);
+const fullscreenContainerRef = ref<HTMLElement | null>(null);
+const isGraphFullscreen = ref(false);
 
 // 动态CSS类 - 只使用水平双向树
 const layoutCssClass = computed(() => 'layout-bidirectional-tree layout-horizontal');
+
+const syncRelationGraphFullscreenState = (value: boolean) => {
+  isGraphFullscreen.value = value;
+  const graphInstance = bidirectionalTreeRef.value?.getInstance();
+  if (graphInstance) {
+    graphInstance.options.fullscreen = value;
+  }
+};
+
+const handleRelationGraphFullscreen = (newValue: boolean) => {
+  syncRelationGraphFullscreenState(newValue);
+};
+
+const syncNativeFullscreenState = () => {
+  syncRelationGraphFullscreenState(document.fullscreenElement === fullscreenContainerRef.value);
+};
+
+const toggleGraphFullscreen = async () => {
+  const target = fullscreenContainerRef.value;
+  if (!target) {
+    return;
+  }
+
+  try {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else {
+      await target.requestFullscreen();
+    }
+  } catch (error) {
+    console.error('BidirectionalTreeLayoutComponent: 切换全屏失败:', error);
+  }
+};
 
 // 水平双向树布局配置
 const horizontalBidirectionalOptions: RGOptions = {
@@ -159,6 +206,7 @@ const horizontalBidirectionalOptions: RGOptions = {
   'defaultNodeFontColor': '#1f2937',  // 深灰色字体，确保在浅色背景上可读
   'defaultLineTextOffset_x': -8,
   'defaultLineTextOffset_y': -1,
+  'allowShowFullscreenMenu': false,
   'allowShowMiniToolBar': true,
   'allowShowMiniView': true
   // 移除重复的 zoomToFitWhenRefresh，已在第78行定义
@@ -547,10 +595,16 @@ const onLineClick = (lineObject: RGLine, linkObject: RGLink, $event: RGUserEvent
 
 // 组件挂载后加载数据
 onMounted(() => {
+  document.addEventListener('fullscreenchange', syncNativeFullscreenState);
+
   // 延迟加载以确保组件完全初始化
   setTimeout(() => {
     loadRealGraphData();
   }, 1000);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('fullscreenchange', syncNativeFullscreenState);
 });
 
 watch(() => [props.courseId, props.graphId, props.courseName], () => {
@@ -572,6 +626,48 @@ defineExpose({
 
 
 
+.bidirectional-tree-viewport {
+  position: relative;
+  width: 100%;
+  height: calc(100vh);
+  background-color: #fafafa;
+}
+
+.graph-fullscreen-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f2937;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+}
+
+.graph-fullscreen-toggle:hover {
+  border-color: #4f46e5;
+  color: #4f46e5;
+  background: #ffffff;
+}
+
+.graph-fullscreen-toggle:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+.graph-fullscreen-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
 /* 双向树布局样式 - 内联版本 */
 .layout-bidirectional-tree {
   background-color: #fafafa;
@@ -591,7 +687,7 @@ defineExpose({
   box-sizing: border-box !important;
   border-radius: 8px !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-  transition: all 0.3s ease !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease !important;
 }
 
 /* 节点悬停效果 - 增强渐变色的交互体验 */
@@ -608,7 +704,7 @@ defineExpose({
 ::v-deep(.layout-bidirectional-tree .rel-line) {
   stroke: #9ca3af !important;
   stroke-width: 1px !important;
-  transition: all 0.2s ease !important;
+  transition: stroke 0.2s ease, stroke-width 0.2s ease, opacity 0.2s ease !important;
 }
 
 ::v-deep(.layout-bidirectional-tree .rel-line:hover) {
