@@ -1,16 +1,7 @@
 <template>
   <div class="center-layout-container" :class="layoutCssClass">
     <div ref="fullscreenContainerRef" class="center-layout-viewport">
-      <button
-        class="graph-fullscreen-toggle"
-        type="button"
-        :title="isGraphFullscreen ? '退出全屏' : '全屏'"
-        :aria-label="isGraphFullscreen ? '退出全屏' : '全屏'"
-        @click.stop="toggleGraphFullscreen"
-      >
-        <Close v-if="isGraphFullscreen" />
-        <FullScreen v-else />
-      </button>
+      <GraphFullscreenToggle :active="isGraphFullscreen" @toggle="toggleGraphFullscreen" />
       <RelationGraph
         ref="centerGraphRef"
         :options="currentCenterOptions"
@@ -27,10 +18,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
-import { Close, FullScreen } from '@element-plus/icons-vue';
 import RelationGraph, { RelationGraphComponent } from 'relation-graph-vue3';
 import { getKnowledgeGraphNodes, getNodeLines } from '@/api/node';
 import { VIRTUAL_ROOT_NODE_ID, isVirtualRootNode, resolveTopLevelNodeIds } from './graphRootUtils';
+import GraphFullscreenToggle from './GraphFullscreenToggle.vue';
+import { useGraphFullscreen } from './useGraphFullscreen';
 import '@/assets/styles/layouts/layout-manager.css';
 
 // 定义props
@@ -334,48 +326,17 @@ const emit = defineEmits(['node-click', 'line-click']);
 
 // 响应式数据
 const centerGraphRef = ref<RelationGraphComponent | null>(null);
-const fullscreenContainerRef = ref<HTMLElement | null>(null);
-const isGraphFullscreen = ref(false);
+const {
+  fullscreenContainerRef,
+  getGraphInstance: getCenterGraphInstance,
+  handleRelationGraphFullscreen,
+  isGraphFullscreen,
+  syncNativeFullscreenState,
+  toggleGraphFullscreen
+} = useGraphFullscreen(centerGraphRef, 'CenterLayoutComponent');
 
 // 动态CSS类
 const layoutCssClass = computed(() => 'layout-center');
-
-const getCenterGraphInstance = () => {
-  return centerGraphRef.value?.getInstance?.();
-};
-
-const syncRelationGraphFullscreenState = (value: boolean) => {
-  isGraphFullscreen.value = value;
-  const graphInstance = getCenterGraphInstance();
-  if (graphInstance) {
-    graphInstance.options.fullscreen = value;
-  }
-};
-
-const handleRelationGraphFullscreen = (newValue: boolean) => {
-  syncRelationGraphFullscreenState(newValue);
-};
-
-const syncNativeFullscreenState = () => {
-  syncRelationGraphFullscreenState(document.fullscreenElement === fullscreenContainerRef.value);
-};
-
-const toggleGraphFullscreen = async () => {
-  const target = fullscreenContainerRef.value;
-  if (!target) {
-    return;
-  }
-
-  try {
-    if (document.fullscreenElement) {
-      await document.exitFullscreen();
-    } else {
-      await target.requestFullscreen();
-    }
-  } catch (error) {
-    console.error('CenterLayoutComponent: 切换全屏失败:', error);
-  }
-};
 
 // 中心布局配置
 const centerLayoutOptions: any = {
@@ -652,41 +613,6 @@ defineExpose({
   position: relative;
   width: 100%;
   height: calc(100vh);
-}
-
-.graph-fullscreen-toggle {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 1500;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 1px solid rgba(148, 163, 184, 0.45);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #1f2937;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
-}
-
-.graph-fullscreen-toggle:hover {
-  border-color: #0e7490;
-  color: #0e7490;
-  background: #ffffff;
-}
-
-.graph-fullscreen-toggle:focus-visible {
-  outline: 2px solid #0e7490;
-  outline-offset: 2px;
-}
-
-.graph-fullscreen-toggle svg {
-  width: 18px;
-  height: 18px;
 }
 
 ::v-deep(.relation-graph) {

@@ -1,16 +1,7 @@
 <template>
   <div class="bidirectional-tree-container" :class="layoutCssClass">
     <div ref="fullscreenContainerRef" class="bidirectional-tree-viewport">
-      <button
-        class="graph-fullscreen-toggle"
-        type="button"
-        :title="isGraphFullscreen ? '退出全屏' : '全屏'"
-        :aria-label="isGraphFullscreen ? '退出全屏' : '全屏'"
-        @click.stop="toggleGraphFullscreen"
-      >
-        <Close v-if="isGraphFullscreen" />
-        <FullScreen v-else />
-      </button>
+      <GraphFullscreenToggle :active="isGraphFullscreen" @toggle="toggleGraphFullscreen" />
       <RelationGraph
         ref="bidirectionalTreeRef"
         :options="currentBidirectionalOptions"
@@ -27,7 +18,6 @@
 
 <script lang="ts" setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
-import { Close, FullScreen } from '@element-plus/icons-vue';
 import RelationGraph, { 
   RGJsonData, 
   RGOptions, 
@@ -40,6 +30,8 @@ import RelationGraph, {
 } from 'relation-graph-vue3';
 import { getKnowledgeGraphNodes, getNodeLines } from '@/api/node';
 import { VIRTUAL_ROOT_NODE_ID, isVirtualRootNode, resolveTopLevelNodeIds } from './graphRootUtils';
+import GraphFullscreenToggle from './GraphFullscreenToggle.vue';
+import { useGraphFullscreen } from './useGraphFullscreen';
 import {
   applyRelationGraphNodeTextLayout,
   getMaxRelationGraphNodeSize
@@ -127,44 +119,16 @@ const emit = defineEmits<{
 
 // 响应式数据
 const bidirectionalTreeRef = ref<RelationGraphComponent | null>(null);
-const fullscreenContainerRef = ref<HTMLElement | null>(null);
-const isGraphFullscreen = ref(false);
+const {
+  fullscreenContainerRef,
+  handleRelationGraphFullscreen,
+  isGraphFullscreen,
+  syncNativeFullscreenState,
+  toggleGraphFullscreen
+} = useGraphFullscreen(bidirectionalTreeRef, 'BidirectionalTreeLayoutComponent');
 
 // 动态CSS类 - 只使用水平双向树
 const layoutCssClass = computed(() => 'layout-bidirectional-tree layout-horizontal');
-
-const syncRelationGraphFullscreenState = (value: boolean) => {
-  isGraphFullscreen.value = value;
-  const graphInstance = bidirectionalTreeRef.value?.getInstance();
-  if (graphInstance) {
-    graphInstance.options.fullscreen = value;
-  }
-};
-
-const handleRelationGraphFullscreen = (newValue: boolean) => {
-  syncRelationGraphFullscreenState(newValue);
-};
-
-const syncNativeFullscreenState = () => {
-  syncRelationGraphFullscreenState(document.fullscreenElement === fullscreenContainerRef.value);
-};
-
-const toggleGraphFullscreen = async () => {
-  const target = fullscreenContainerRef.value;
-  if (!target) {
-    return;
-  }
-
-  try {
-    if (document.fullscreenElement) {
-      await document.exitFullscreen();
-    } else {
-      await target.requestFullscreen();
-    }
-  } catch (error) {
-    console.error('BidirectionalTreeLayoutComponent: 切换全屏失败:', error);
-  }
-};
 
 // 水平双向树布局配置
 const horizontalBidirectionalOptions: RGOptions = {
@@ -762,41 +726,6 @@ defineExpose({
   background:
     radial-gradient(circle at 50% 48%, rgba(14, 116, 144, 0.08), transparent 32%),
     linear-gradient(180deg, #f8fbff 0%, #f3f6fb 100%);
-}
-
-.graph-fullscreen-toggle {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 1500;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 1px solid rgba(148, 163, 184, 0.45);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #1f2937;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
-}
-
-.graph-fullscreen-toggle:hover {
-  border-color: #0e7490;
-  color: #0e7490;
-  background: #ffffff;
-}
-
-.graph-fullscreen-toggle:focus-visible {
-  outline: 2px solid #0e7490;
-  outline-offset: 2px;
-}
-
-.graph-fullscreen-toggle svg {
-  width: 18px;
-  height: 18px;
 }
 
 /* 双向树布局样式 - 内联版本 */
