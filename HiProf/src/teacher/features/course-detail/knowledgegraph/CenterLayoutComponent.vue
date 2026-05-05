@@ -10,6 +10,23 @@
         :on-canvas-click="onCanvasClick"
         :on-fullscreen="handleRelationGraphFullscreen"
       >
+        <template #svg-defs>
+          <marker
+            :id="CENTER_ARROW_END_MARKER_ID"
+            markerWidth="28"
+            markerHeight="28"
+            refX="11"
+            refY="6"
+            markerUnits="userSpaceOnUse"
+            orient="auto"
+            viewBox="0 0 12 12"
+          >
+            <path
+              :d="CENTER_ARROW_MARKER_PATH"
+              style="fill: #111827; fill: context-stroke;"
+            />
+          </marker>
+        </template>
         <template #graph-plug>
         </template>
       </RelationGraph>
@@ -74,16 +91,20 @@ const CENTER_LINE_TEXT_COLOR = '#374151';
 const CENTER_LINE_WIDTH = 3;
 const CENTER_LINE_ACTIVE_WIDTH = 4.25;
 const CENTER_LINE_MUTED_WIDTH = 2;
+const CENTER_ARROW_END_MARKER_ID = 'kg-center-arrow-end';
+const CENTER_ARROW_MARKER_PATH = 'M1,1 L11,6 L1,11 L4,6 Z';
+// relation-graph-vue3 的 marker viewBox 固定为 0 0 12 12。
 const CENTER_LINE_MARKER = {
-  markerWidth: 28,
-  markerHeight: 28,
-  refX: 24,
-  refY: 14,
-  data: 'M3,3 L25,14 L3,25 L9,14 Z'
+  markerWidth: 20,
+  markerHeight: 20,
+  refX: 11,
+  refY: 6,
+  data: CENTER_ARROW_MARKER_PATH
 };
 const collapsedCenterNodeIds = ref<Set<string>>(new Set());
 const rawCenterNodes = ref<any[]>([]);
 const rawCenterLines = ref<Array<Record<string, unknown>>>([]);
+const FOCUS_ANIMATION_MS = 420;
 
 const CENTER_NODE_ICONS = [
   '<svg viewBox="0 0 24 24" class="kg-center-node-svg" aria-hidden="true"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H20v14H7a3 3 0 0 0-3 3V6.5Z"></path><path d="M7 18h13"></path><path d="M7 8h8"></path></svg>',
@@ -210,6 +231,7 @@ const getCenterLineWidth = (state = 'default') => {
 
 const buildCenterLine = (line: Record<string, unknown>, state = 'default') => ({
   ...applyGraphVisualLineStyle(line, state),
+  endMarkerId: CENTER_ARROW_END_MARKER_ID,
   color: state === 'active' ? '#000000' : CENTER_LINE_COLOR,
   fontColor: state === 'active' ? '#000000' : CENTER_LINE_TEXT_COLOR,
   lineWidth: getCenterLineWidth(state),
@@ -251,29 +273,6 @@ const buildCenterHierarchy = (rawNodes: Array<Record<string, unknown>>) => {
   };
 };
 
-const getVisibleCenterNodeIds = (rootIds: string[], childrenByParentId: Map<string, string[]>) => {
-  const visibleNodeIds = new Set<string>();
-  const visitedNodeIds = new Set<string>();
-
-  const visit = (nodeId: string) => {
-    if (!nodeId || visitedNodeIds.has(nodeId)) {
-      return;
-    }
-
-    visitedNodeIds.add(nodeId);
-    visibleNodeIds.add(nodeId);
-
-    if (collapsedCenterNodeIds.value.has(nodeId)) {
-      return;
-    }
-
-    (childrenByParentId.get(nodeId) || []).forEach(visit);
-  };
-
-  rootIds.forEach(visit);
-  return visibleNodeIds;
-};
-
 const getStableCenterRootIds = (rawNodes: Array<Record<string, unknown>>) => {
   const rootIds = resolveTopLevelNodeIds(rawNodes);
   if (rootIds.length > 0) {
@@ -284,17 +283,8 @@ const getStableCenterRootIds = (rawNodes: Array<Record<string, unknown>>) => {
   return fallbackRootId ? [fallbackRootId] : [];
 };
 
-const buildVirtualRootLines = (
-  rootIds: string[],
-  visibleNodeIds: Set<string>,
-  isVirtualRootCollapsed: boolean
-) => {
-  if (isVirtualRootCollapsed) {
-    return [];
-  }
-
+const buildVirtualRootLines = (rootIds: string[]) => {
   return rootIds
-    .filter(rootId => visibleNodeIds.has(rootId))
     .map((rootId, index) => ({
       from: VIRTUAL_ROOT_NODE_ID,
       to: rootId,
@@ -309,12 +299,8 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedLines
   const hierarchy = buildCenterHierarchy(rawNodes);
   const isVirtualRootVisible = stableRootIds.length > 1;
   const isVirtualRootCollapsed = collapsedCenterNodeIds.value.has(VIRTUAL_ROOT_NODE_ID);
-  const visibleNodeIds = isVirtualRootVisible && isVirtualRootCollapsed
-    ? new Set<string>()
-    : getVisibleCenterNodeIds(stableRootIds, hierarchy.childrenByParentId);
   const relationSets = buildGraphRelationSets(props.interactionState?.selectedNodeId, processedLines);
   const processedNodes = rawNodes
-    .filter(node => visibleNodeIds.has(normalizeCenterNodeId(node.id)))
     .map(node => {
       const id = normalizeCenterNodeId(node.id);
       const state = getNodeInteractionState(id, relationSets);
@@ -328,15 +314,13 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedLines
         state
       });
     });
-  const visibleLines = processedLines.filter((line: any) => {
-    return visibleNodeIds.has(normalizeCenterNodeId(line.from)) && visibleNodeIds.has(normalizeCenterNodeId(line.to));
-  }).map((line: any) => buildCenterLine(line, getLineInteractionState(line, relationSets)));
+  const styledLines = processedLines.map((line: any) => buildCenterLine(line, getLineInteractionState(line, relationSets)));
 
   if (stableRootIds.length <= 1) {
     return {
       rootId: stableRootIds[0] || '',
       nodes: processedNodes,
-      lines: visibleLines
+      lines: styledLines
     };
   }
 
@@ -354,12 +338,12 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedLines
     state: getNodeInteractionState(VIRTUAL_ROOT_NODE_ID, relationSets)
   });
 
-  const virtualLines = buildVirtualRootLines(stableRootIds, visibleNodeIds, isVirtualRootCollapsed);
+  const virtualLines = buildVirtualRootLines(stableRootIds);
 
   return {
     rootId: VIRTUAL_ROOT_NODE_ID,
     nodes: [virtualRootNode, ...processedNodes],
-    lines: [...virtualLines, ...visibleLines]
+    lines: [...virtualLines, ...styledLines]
   };
 };
 
@@ -530,9 +514,23 @@ const toggleCenterNode = async (nodeObject: any) => {
   } else {
     nextCollapsedNodeIds.add(nodeId);
   }
-  collapsedCenterNodeIds.value = nextCollapsedNodeIds;
 
-  await renderCenterGraph(rawCenterNodes.value, rawCenterLines.value, { resetView: false });
+  const graphInstance = getCenterGraphInstance();
+  const graphNode = graphInstance?.getNodeById?.(nodeId) || nodeObject;
+  if (graphInstance && typeof graphInstance.expandOrCollapseNode === 'function') {
+    await graphInstance.expandOrCollapseNode(graphNode);
+    if (graphNode.expanded === false) {
+      nextCollapsedNodeIds.add(nodeId);
+    } else {
+      nextCollapsedNodeIds.delete(nodeId);
+    }
+    collapsedCenterNodeIds.value = nextCollapsedNodeIds;
+    syncCenterVisualState();
+    return;
+  }
+
+  collapsedCenterNodeIds.value = nextCollapsedNodeIds;
+  await refreshCenterVisualState();
 };
 
 const renderCenterGraph = async (
@@ -578,12 +576,75 @@ const renderCenterGraph = async (
   }
 };
 
-const refreshCenterVisualState = async () => {
+const getCenterGraphLineKey = (line: any) => {
+  return normalizeCenterNodeId(line?.id) || `${normalizeCenterNodeId(line?.from)}__${normalizeCenterNodeId(line?.to)}`;
+};
+
+const applyCenterNodeVisualState = (targetNode: any, sourceNode: any) => {
+  targetNode.expanded = sourceNode.expanded;
+  targetNode.innerHTML = sourceNode.innerHTML;
+  targetNode.styleClass = sourceNode.styleClass;
+  targetNode.className = sourceNode.className;
+  targetNode.color = sourceNode.color;
+  targetNode.borderColor = sourceNode.borderColor;
+  targetNode.borderWidth = sourceNode.borderWidth;
+  targetNode.fontColor = sourceNode.fontColor;
+  targetNode.opacity = sourceNode.opacity;
+  targetNode.data = {
+    ...(targetNode.data || {}),
+    ...(sourceNode.data || {})
+  };
+};
+
+const applyCenterLineVisualState = (targetLine: any, sourceLine: any) => {
+  targetLine.color = sourceLine.color;
+  targetLine.fontColor = sourceLine.fontColor;
+  targetLine.lineWidth = sourceLine.lineWidth;
+  targetLine.showStartArrow = sourceLine.showStartArrow;
+  targetLine.showEndArrow = sourceLine.showEndArrow;
+  targetLine.startMarkerId = sourceLine.startMarkerId;
+  targetLine.endMarkerId = sourceLine.endMarkerId;
+  targetLine.isHideArrow = sourceLine.isHideArrow;
+  targetLine.useTextPath = sourceLine.useTextPath;
+  targetLine.styleClass = sourceLine.styleClass;
+};
+
+const syncCenterVisualState = () => {
   if (!rawCenterNodes.value.length) {
     return;
   }
 
-  await renderCenterGraph(rawCenterNodes.value, rawCenterLines.value, { resetView: false });
+  const graphInstance = getCenterGraphInstance();
+  if (!graphInstance) {
+    return;
+  }
+
+  const graphData = buildGraphData(rawCenterNodes.value, rawCenterLines.value);
+  const nextNodeById = new Map((graphData.nodes || []).map((node: any) => [normalizeCenterNodeId(node.id), node]));
+  const nextLineByKey = new Map((graphData.lines || []).map((line: any) => [getCenterGraphLineKey(line), line]));
+
+  graphInstance.getNodes().forEach((node: any) => {
+    const nextNode = nextNodeById.get(normalizeCenterNodeId(node.id));
+    if (nextNode) {
+      applyCenterNodeVisualState(node, nextNode);
+    }
+  });
+
+  graphInstance.getLinks().forEach((link: any) => {
+    link.relations.forEach((line: any) => {
+      const nextLine = nextLineByKey.get(getCenterGraphLineKey(line));
+      if (nextLine) {
+        applyCenterLineVisualState(line, nextLine);
+      }
+    });
+  });
+
+  graphInstance.updateElementLines?.();
+  graphInstance.dataUpdated?.();
+};
+
+const refreshCenterVisualState = async () => {
+  syncCenterVisualState();
 };
 
 const searchNodes = (keyword: string) => {
@@ -619,8 +680,55 @@ const revealCenterNodePath = async (nodeId: string) => {
   }
 
   collapsedCenterNodeIds.value = nextCollapsedNodeIds;
-  await renderCenterGraph(rawCenterNodes.value, rawCenterLines.value, { resetView: false });
+  const graphInstance = getCenterGraphInstance();
+  if (graphInstance) {
+    const nodesToReveal = [VIRTUAL_ROOT_NODE_ID, ...ancestorNodeIds];
+    for (const ancestorNodeId of nodesToReveal) {
+      const ancestorNode = graphInstance.getNodeById?.(ancestorNodeId);
+      if (ancestorNode?.expanded === false && typeof graphInstance.expandNode === 'function') {
+        await graphInstance.expandNode(ancestorNode);
+      }
+    }
+  }
+
+  syncCenterVisualState();
   await nextTick();
+};
+
+const getCenterNodeCenteredOffset = (graphInstance: any, targetNode: any) => {
+  graphInstance.resetViewSize?.(false);
+  const graphOptions = graphInstance.options || {};
+  const zoom = Number(graphOptions.canvasZoom || 100) / 100;
+  const viewWidth = Number(graphOptions.viewSize?.width || 0);
+  const viewHeight = Number(graphOptions.viewSize?.height || 0);
+  const canvasWidth = Number(graphOptions.canvasSize?.width || 0);
+  const canvasHeight = Number(graphOptions.canvasSize?.height || 0);
+  const nodeWidth = Number(targetNode.width || targetNode.el?.offsetWidth || currentCenterOptions.value.defaultNodeWidth || 0);
+  const nodeHeight = Number(targetNode.height || targetNode.el?.offsetHeight || currentCenterOptions.value.defaultNodeHeight || 0);
+  const nodeCenterX = Number(targetNode.x || 0) + nodeWidth / 2;
+  const nodeCenterY = Number(targetNode.y || 0) + nodeHeight / 2;
+
+  return {
+    x: viewWidth / 2 - nodeCenterX * zoom - canvasWidth / 2 + canvasWidth * zoom / 2 + Number(graphOptions.graphOffset_x || 0),
+    y: viewHeight / 2 - nodeCenterY * zoom - canvasHeight / 2 + canvasHeight * zoom / 2 + Number(graphOptions.graphOffset_y || 0)
+  };
+};
+
+const smoothFocusCenterNodeById = async (graphInstance: any, nodeId: string) => {
+  const targetNode = graphInstance.getNodeById?.(nodeId);
+  if (!targetNode) {
+    return false;
+  }
+
+  const nextOffset = getCenterNodeCenteredOffset(graphInstance, targetNode);
+  if (typeof graphInstance.animateGoto === 'function') {
+    await graphInstance.animateGoto(nextOffset.x, nextOffset.y, FOCUS_ANIMATION_MS);
+  }
+  graphInstance.setCanvasOffset?.(nextOffset.x, nextOffset.y);
+  graphInstance.setCheckedNode?.(nodeId);
+  graphInstance.refreshNVAnalysisInfo?.();
+  graphInstance.dataUpdated?.();
+  return true;
 };
 
 const focusNodeById = async (nodeId: string) => {
@@ -633,6 +741,11 @@ const focusNodeById = async (nodeId: string) => {
 
   const graphInstance = getCenterGraphInstance();
   if (!graphInstance) {
+    return;
+  }
+
+  await nextTick();
+  if (await smoothFocusCenterNodeById(graphInstance, normalizedNodeId)) {
     return;
   }
 

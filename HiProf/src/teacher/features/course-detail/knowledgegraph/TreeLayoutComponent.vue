@@ -27,8 +27,7 @@ import {
   isVirtualRootNode,
   normalizeNodeId,
   resolveTreeAncestorNodeIds,
-  resolveTopLevelNodeIds,
-  resolveVisibleTreeNodeIds
+  resolveTopLevelNodeIds
 } from './graphRootUtils';
 import GraphFullscreenToggle from './GraphFullscreenToggle.vue';
 import { useGraphFullscreen } from './useGraphFullscreen';
@@ -134,29 +133,24 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedNodes
     ? rootIds
     : (processedNodes[0]?.id ? [String(processedNodes[0].id)] : []);
   const childrenByParentId = buildTreeChildrenByParentId(rawNodes, processedLines);
-  const visibleNodeIds = resolveVisibleTreeNodeIds(stableRootIds, childrenByParentId, collapsedTreeNodeIds.value);
-  const visibleProcessedLines = processedLines.filter(line => {
-    return visibleNodeIds.has(normalizeNodeId(line.from)) && visibleNodeIds.has(normalizeNodeId(line.to));
-  });
   const chapterNodeIds = new Set(stableRootIds.flatMap(rootId => childrenByParentId.get(rootId) || []));
   const visualContext = buildGraphVisualContext({
     rootIds: stableRootIds,
     chapterNodeIds,
     selectedNodeId: props.interactionState?.selectedNodeId,
-    lines: visibleProcessedLines
+    lines: processedLines
   });
-  const visibleProcessedNodes = processedNodes
-    .filter(node => visibleNodeIds.has(normalizeNodeId(node.id)))
+  const styledProcessedNodes = processedNodes
     .map(node => applyTreeNodeToggleState(node, childrenByParentId, visualContext));
-  const visibleStyledLines = visibleProcessedLines.map(line => {
+  const styledProcessedLines = processedLines.map(line => {
     return applyGraphVisualLineStyle(line, getLineInteractionState(line, visualContext.relationSets));
   });
 
   if (stableRootIds.length <= 1) {
     return {
       rootId: stableRootIds[0] || '',
-      nodes: visibleProcessedNodes,
-      links: visibleStyledLines
+      nodes: styledProcessedNodes,
+      links: styledProcessedLines
     };
   }
 
@@ -186,10 +180,10 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedNodes
 
   return {
     rootId: VIRTUAL_ROOT_NODE_ID,
-    nodes: [styledVirtualRootNode, ...visibleProcessedNodes],
+    nodes: [styledVirtualRootNode, ...styledProcessedNodes],
     links: [
       ...virtualLinks.map(line => applyGraphVisualLineStyle(line)),
-      ...visibleStyledLines
+      ...styledProcessedLines
     ]
   };
 };
@@ -212,6 +206,7 @@ const {
 } = useGraphFullscreen(treeGraphRef, 'TreeLayoutComponent');
 // 只保留水平布局
 const currentTreeType = ref<'horizontal'>('horizontal');
+const FOCUS_ANIMATION_MS = 420;
 
 // 动态CSS类 - 只使用水平树形布局
 const layoutCssClass = computed(() => 'layout-horizontal-tree');
@@ -477,13 +472,72 @@ const renderTreeGraph = async (graphData: any, options: { resetView?: boolean } 
   }
 };
 
-const refreshTreeVisualState = async () => {
+const getGraphLineKey = (line: any) => {
+  return normalizeNodeId(line?.id) || `${normalizeNodeId(line?.from)}__${normalizeNodeId(line?.to)}`;
+};
+
+const applyTreeNodeVisualState = (targetNode: any, sourceNode: any) => {
+  targetNode.expanded = sourceNode.expanded;
+  targetNode.innerHTML = sourceNode.innerHTML;
+  targetNode.styleClass = sourceNode.styleClass;
+  targetNode.className = sourceNode.className;
+  targetNode.color = sourceNode.color;
+  targetNode.borderColor = sourceNode.borderColor;
+  targetNode.borderWidth = sourceNode.borderWidth;
+  targetNode.fontColor = sourceNode.fontColor;
+  targetNode.opacity = sourceNode.opacity;
+  targetNode.data = {
+    ...(targetNode.data || {}),
+    ...(sourceNode.data || {})
+  };
+};
+
+const applyTreeLineVisualState = (targetLine: any, sourceLine: any) => {
+  targetLine.color = sourceLine.color;
+  targetLine.fontColor = sourceLine.fontColor;
+  targetLine.lineWidth = sourceLine.lineWidth;
+  targetLine.showStartArrow = sourceLine.showStartArrow;
+  targetLine.showEndArrow = sourceLine.showEndArrow;
+  targetLine.isHideArrow = sourceLine.isHideArrow;
+  targetLine.styleClass = sourceLine.styleClass;
+};
+
+const syncTreeVisualState = () => {
   if (!rawTreeNodes.value.length || !rawTreeProcessedNodes.value.length) {
     return;
   }
 
+  const graphInstance = treeGraphRef.value?.getInstance();
+  if (!graphInstance) {
+    return;
+  }
+
   const graphData = buildGraphData(rawTreeNodes.value, rawTreeProcessedNodes.value, rawTreeProcessedLines.value);
-  await renderTreeGraph(graphData, { resetView: false });
+  const nextNodeById = new Map((graphData.nodes || []).map((node: any) => [normalizeNodeId(node.id), node]));
+  const nextLineByKey = new Map((graphData.links || []).map((line: any) => [getGraphLineKey(line), line]));
+
+  graphInstance.getNodes().forEach((node: any) => {
+    const nextNode = nextNodeById.get(normalizeNodeId(node.id));
+    if (nextNode) {
+      applyTreeNodeVisualState(node, nextNode);
+    }
+  });
+
+  graphInstance.getLinks().forEach((link: any) => {
+    link.relations.forEach((line: any) => {
+      const nextLine = nextLineByKey.get(getGraphLineKey(line));
+      if (nextLine) {
+        applyTreeLineVisualState(line, nextLine);
+      }
+    });
+  });
+
+  graphInstance.updateElementLines?.();
+  graphInstance.dataUpdated?.();
+};
+
+const refreshTreeVisualState = async () => {
+  syncTreeVisualState();
 };
 
 const searchNodes = (keyword: string) => {
@@ -508,14 +562,59 @@ const revealTreeNodePath = async (nodeId: string) => {
     }
   });
 
+  collapsedTreeNodeIds.value = nextCollapsedNodeIds;
   if (!hasChanged) {
     return;
   }
 
-  collapsedTreeNodeIds.value = nextCollapsedNodeIds;
-  const graphData = buildGraphData(rawTreeNodes.value, rawTreeProcessedNodes.value, rawTreeProcessedLines.value);
-  await renderTreeGraph(graphData, { resetView: false });
+  const graphInstance = treeGraphRef.value?.getInstance();
+  if (graphInstance) {
+    for (const ancestorNodeId of ancestorNodeIds) {
+      const ancestorNode = graphInstance.getNodeById?.(ancestorNodeId);
+      if (ancestorNode?.expanded === false && typeof graphInstance.expandNode === 'function') {
+        await graphInstance.expandNode(ancestorNode);
+      }
+    }
+  }
+
+  syncTreeVisualState();
   await nextTick();
+};
+
+const getTreeCenteredOffset = (graphInstance: any, targetNode: any) => {
+  graphInstance.resetViewSize?.(false);
+  const graphOptions = graphInstance.options || {};
+  const zoom = Number(graphOptions.canvasZoom || 100) / 100;
+  const viewWidth = Number(graphOptions.viewSize?.width || 0);
+  const viewHeight = Number(graphOptions.viewSize?.height || 0);
+  const canvasWidth = Number(graphOptions.canvasSize?.width || 0);
+  const canvasHeight = Number(graphOptions.canvasSize?.height || 0);
+  const nodeWidth = Number(targetNode.width || targetNode.el?.offsetWidth || currentTreeOptions.value.defaultNodeWidth || 0);
+  const nodeHeight = Number(targetNode.height || targetNode.el?.offsetHeight || currentTreeOptions.value.defaultNodeHeight || 0);
+  const nodeCenterX = Number(targetNode.x || 0) + nodeWidth / 2;
+  const nodeCenterY = Number(targetNode.y || 0) + nodeHeight / 2;
+
+  return {
+    x: viewWidth / 2 - nodeCenterX * zoom - canvasWidth / 2 + canvasWidth * zoom / 2 + Number(graphOptions.graphOffset_x || 0),
+    y: viewHeight / 2 - nodeCenterY * zoom - canvasHeight / 2 + canvasHeight * zoom / 2 + Number(graphOptions.graphOffset_y || 0)
+  };
+};
+
+const smoothFocusTreeNodeById = async (graphInstance: any, nodeId: string) => {
+  const targetNode = graphInstance.getNodeById?.(nodeId);
+  if (!targetNode) {
+    return false;
+  }
+
+  const nextOffset = getTreeCenteredOffset(graphInstance, targetNode);
+  if (typeof graphInstance.animateGoto === 'function') {
+    await graphInstance.animateGoto(nextOffset.x, nextOffset.y, FOCUS_ANIMATION_MS);
+  }
+  graphInstance.setCanvasOffset?.(nextOffset.x, nextOffset.y);
+  graphInstance.setCheckedNode?.(nodeId);
+  graphInstance.refreshNVAnalysisInfo?.();
+  graphInstance.dataUpdated?.();
+  return true;
 };
 
 const focusNodeById = async (nodeId: string) => {
@@ -528,6 +627,11 @@ const focusNodeById = async (nodeId: string) => {
 
   const graphInstance = treeGraphRef.value?.getInstance();
   if (!graphInstance) {
+    return;
+  }
+
+  await nextTick();
+  if (await smoothFocusTreeNodeById(graphInstance, normalizedNodeId)) {
     return;
   }
 
@@ -653,10 +757,23 @@ const toggleTreeNode = async (nodeObject: RGNode, event?: Event) => {
   } else {
     nextCollapsedNodeIds.add(nodeId);
   }
-  collapsedTreeNodeIds.value = nextCollapsedNodeIds;
 
-  const graphData = buildGraphData(rawTreeNodes.value, rawTreeProcessedNodes.value, rawTreeProcessedLines.value);
-  await renderTreeGraph(graphData, { resetView: false });
+  const graphInstance = treeGraphRef.value?.getInstance();
+  const graphNode = graphInstance?.getNodeById?.(nodeId) || nodeObject;
+  if (graphInstance && typeof graphInstance.expandOrCollapseNode === 'function') {
+    await graphInstance.expandOrCollapseNode(graphNode, event as RGUserEvent);
+    if (graphNode.expanded === false) {
+      nextCollapsedNodeIds.add(nodeId);
+    } else {
+      nextCollapsedNodeIds.delete(nodeId);
+    }
+    collapsedTreeNodeIds.value = nextCollapsedNodeIds;
+    syncTreeVisualState();
+    return;
+  }
+
+  collapsedTreeNodeIds.value = nextCollapsedNodeIds;
+  await refreshTreeVisualState();
 };
 
 // 处理连线点击

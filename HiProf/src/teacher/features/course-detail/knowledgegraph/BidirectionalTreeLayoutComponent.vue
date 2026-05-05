@@ -36,8 +36,8 @@ import {
   isVirtualRootNode,
   normalizeNodeId,
   resolveTreeAncestorNodeIds,
-  resolveTopLevelNodeIds,
-  resolveVisibleTreeNodeIds
+  resolveVisibleTreeNodeIds,
+  resolveTopLevelNodeIds
 } from './graphRootUtils';
 import GraphFullscreenToggle from './GraphFullscreenToggle.vue';
 import { useGraphFullscreen } from './useGraphFullscreen';
@@ -95,6 +95,7 @@ const collapsedBidirectionalNodeIds = ref<Set<string>>(new Set());
 const rawBidirectionalNodes = ref<any[]>([]);
 const rawBidirectionalProcessedNodes = ref<Array<Record<string, unknown>>>([]);
 const rawBidirectionalProcessedLines = ref<Array<Record<string, unknown>>>([]);
+const FOCUS_ANIMATION_MS = 420;
 
 const buildBidirectionalToggleHtml = (hasChildren: boolean, isCollapsed: boolean, position: 'left' | 'right') => {
   if (!hasChildren) {
@@ -148,20 +149,24 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedNodes
     ? rootIds
     : (processedNodes[0]?.id ? [String(processedNodes[0].id)] : []);
   const childrenByParentId = buildTreeChildrenByParentId(rawNodes, processedLines);
-  const visibleNodeIds = resolveVisibleTreeNodeIds(stableRootIds, childrenByParentId, collapsedBidirectionalNodeIds.value);
-  const visibleProcessedLines = processedLines.filter(line => {
-    return visibleNodeIds.has(normalizeNodeId(line.from)) && visibleNodeIds.has(normalizeNodeId(line.to));
-  });
   const chapterNodeIds = new Set(stableRootIds.flatMap(rootId => childrenByParentId.get(rootId) || []));
+  const visibleNodeIds = resolveVisibleTreeNodeIds(
+    stableRootIds,
+    childrenByParentId,
+    collapsedBidirectionalNodeIds.value
+  );
   const visualContext = buildGraphVisualContext({
     rootIds: stableRootIds,
     chapterNodeIds,
     selectedNodeId: props.interactionState?.selectedNodeId,
-    lines: visibleProcessedLines
+    lines: processedLines
   });
   const visibleProcessedNodes = processedNodes
     .filter(node => visibleNodeIds.has(normalizeNodeId(node.id)))
     .map(node => applyBidirectionalToggleState(node, childrenByParentId, visualContext));
+  const visibleProcessedLines = processedLines.filter(line => {
+    return visibleNodeIds.has(normalizeNodeId(line.from)) && visibleNodeIds.has(normalizeNodeId(line.to));
+  });
   const visibleStyledLines = visibleProcessedLines.map(line => {
     return applyGraphVisualLineStyle(line, getLineInteractionState(line, visualContext.relationSets));
   });
@@ -566,7 +571,7 @@ const currentBidirectionalOptions = computed(() => {
     defaultNodeHeight: dynamicParams.nodeHeight,
     allowShowMiniToolBar: props.settings.enableZoom,
     allowShowMiniView: props.settings.enableZoom,
-    useAnimationWhenExpanded: props.settings.enableAnimation,
+    useAnimationWhenExpanded: false,
     useAnimationWhenRefresh: props.settings.enableAnimation
   };
 
@@ -732,8 +737,58 @@ const renderBidirectionalTree = async (graphData: any, options: { resetView?: bo
   }
 };
 
-const refreshBidirectionalVisualState = async () => {
+const renderCurrentBidirectionalTree = async (options: { resetView?: boolean } = {}) => {
   if (!rawBidirectionalNodes.value.length || !rawBidirectionalProcessedNodes.value.length) {
+    return;
+  }
+
+  await renderBidirectionalTree(buildGraphData(
+    rawBidirectionalNodes.value,
+    rawBidirectionalProcessedNodes.value,
+    rawBidirectionalProcessedLines.value
+  ), options);
+};
+
+const getGraphLineKey = (line: any) => {
+  return normalizeNodeId(line?.id) || `${normalizeNodeId(line?.from)}__${normalizeNodeId(line?.to)}`;
+};
+
+const applyBidirectionalNodeVisualState = (targetNode: any, sourceNode: any) => {
+  targetNode.expanded = sourceNode.expanded;
+  targetNode.innerHTML = sourceNode.innerHTML;
+  targetNode.styleClass = sourceNode.styleClass;
+  targetNode.className = sourceNode.className;
+  targetNode.color = sourceNode.color;
+  targetNode.borderColor = sourceNode.borderColor;
+  targetNode.borderWidth = sourceNode.borderWidth;
+  targetNode.fontColor = sourceNode.fontColor;
+  targetNode.opacity = sourceNode.opacity;
+  targetNode.data = {
+    ...(targetNode.data || {}),
+    ...(sourceNode.data || {})
+  };
+};
+
+const applyBidirectionalLineVisualState = (targetLine: any, sourceLine: any) => {
+  targetLine.color = sourceLine.color;
+  targetLine.fontColor = sourceLine.fontColor;
+  targetLine.lineWidth = sourceLine.lineWidth;
+  targetLine.showStartArrow = sourceLine.showStartArrow;
+  targetLine.showEndArrow = sourceLine.showEndArrow;
+  targetLine.isHideArrow = sourceLine.isHideArrow;
+  targetLine.styleClass = sourceLine.styleClass;
+  if (sourceLine.placeText !== undefined) {
+    targetLine.placeText = sourceLine.placeText;
+  }
+};
+
+const syncBidirectionalVisualState = () => {
+  if (!rawBidirectionalNodes.value.length || !rawBidirectionalProcessedNodes.value.length) {
+    return;
+  }
+
+  const graphInstance = bidirectionalTreeRef.value?.getInstance();
+  if (!graphInstance) {
     return;
   }
 
@@ -742,7 +797,31 @@ const refreshBidirectionalVisualState = async () => {
     rawBidirectionalProcessedNodes.value,
     rawBidirectionalProcessedLines.value
   ));
-  await renderBidirectionalTree(graphData, { resetView: false });
+  const nextNodeById = new Map((graphData.nodes || []).map((node: any) => [normalizeNodeId(node.id), node]));
+  const nextLineByKey = new Map((graphData.links || []).map((line: any) => [getGraphLineKey(line), line]));
+
+  graphInstance.getNodes().forEach((node: any) => {
+    const nextNode = nextNodeById.get(normalizeNodeId(node.id));
+    if (nextNode) {
+      applyBidirectionalNodeVisualState(node, nextNode);
+    }
+  });
+
+  graphInstance.getLinks().forEach((link: any) => {
+    link.relations.forEach((line: any) => {
+      const nextLine = nextLineByKey.get(getGraphLineKey(line));
+      if (nextLine) {
+        applyBidirectionalLineVisualState(line, nextLine);
+      }
+    });
+  });
+
+  graphInstance.updateElementLines?.();
+  graphInstance.dataUpdated?.();
+};
+
+const refreshBidirectionalVisualState = async () => {
+  syncBidirectionalVisualState();
 };
 
 const searchNodes = (keyword: string) => {
@@ -767,35 +846,48 @@ const revealBidirectionalNodePath = async (nodeId: string) => {
     }
   });
 
+  collapsedBidirectionalNodeIds.value = nextCollapsedNodeIds;
   if (!hasChanged) {
     return;
   }
 
-  collapsedBidirectionalNodeIds.value = nextCollapsedNodeIds;
-  const graphData = applyBidirectionalPositions(buildGraphData(
-    rawBidirectionalNodes.value,
-    rawBidirectionalProcessedNodes.value,
-    rawBidirectionalProcessedLines.value
-  ));
-  await renderBidirectionalTree(graphData, { resetView: false });
+  await renderCurrentBidirectionalTree({ resetView: false });
   await nextTick();
 };
 
-const centerBidirectionalNodeById = (graphInstance: any, nodeId: string) => {
+const getBidirectionalCenteredOffset = (graphInstance: any, targetNode: any) => {
+  graphInstance.resetViewSize?.(false);
+  const graphOptions = graphInstance.options || {};
+  const zoom = Number(graphOptions.canvasZoom || 100) / 100;
+  const viewWidth = Number(graphOptions.viewSize?.width || 0);
+  const viewHeight = Number(graphOptions.viewSize?.height || 0);
+  const canvasWidth = Number(graphOptions.canvasSize?.width || 0);
+  const canvasHeight = Number(graphOptions.canvasSize?.height || 0);
+  const nodeWidth = Number(targetNode.width || targetNode.el?.offsetWidth || currentBidirectionalOptions.value.defaultNodeWidth || 0);
+  const nodeHeight = Number(targetNode.height || targetNode.el?.offsetHeight || currentBidirectionalOptions.value.defaultNodeHeight || 0);
+  const nodeCenterX = Number(targetNode.x || 0) + nodeWidth / 2;
+  const nodeCenterY = Number(targetNode.y || 0) + nodeHeight / 2;
+
+  return {
+    x: viewWidth / 2 - nodeCenterX * zoom - canvasWidth / 2 + canvasWidth * zoom / 2 + Number(graphOptions.graphOffset_x || 0),
+    y: viewHeight / 2 - nodeCenterY * zoom - canvasHeight / 2 + canvasHeight * zoom / 2 + Number(graphOptions.graphOffset_y || 0)
+  };
+};
+
+const smoothCenterBidirectionalNodeById = async (graphInstance: any, nodeId: string) => {
   const targetNode = graphInstance.getNodeById?.(nodeId);
   if (!targetNode) {
     return false;
   }
 
-  graphInstance.resetViewSize?.(false);
-  const nodeWidth = Number(targetNode.width || currentBidirectionalOptions.value.defaultNodeWidth || 0);
-  const nodeHeight = Number(targetNode.height || currentBidirectionalOptions.value.defaultNodeHeight || 0);
-  graphInstance.setCanvasCenter(
-    Number(targetNode.x || 0) + nodeWidth / 2,
-    Number(targetNode.y || 0) + nodeHeight / 2
-  );
+  const nextOffset = getBidirectionalCenteredOffset(graphInstance, targetNode);
+  if (typeof graphInstance.animateGoto === 'function') {
+    await graphInstance.animateGoto(nextOffset.x, nextOffset.y, FOCUS_ANIMATION_MS);
+  }
+  graphInstance.setCanvasOffset?.(nextOffset.x, nextOffset.y);
   graphInstance.setCheckedNode?.(nodeId);
   graphInstance.refreshNVAnalysisInfo?.();
+  graphInstance.dataUpdated?.();
   return true;
 };
 
@@ -813,7 +905,7 @@ const focusNodeById = async (nodeId: string) => {
   }
 
   await nextTick();
-  if (centerBidirectionalNodeById(graphInstance, normalizedNodeId)) {
+  if (await smoothCenterBidirectionalNodeById(graphInstance, normalizedNodeId)) {
     return;
   }
 
@@ -909,14 +1001,9 @@ const toggleBidirectionalNode = async (nodeObject: RGNode, event?: Event) => {
   } else {
     nextCollapsedNodeIds.add(nodeId);
   }
-  collapsedBidirectionalNodeIds.value = nextCollapsedNodeIds;
 
-  const graphData = applyBidirectionalPositions(buildGraphData(
-    rawBidirectionalNodes.value,
-    rawBidirectionalProcessedNodes.value,
-    rawBidirectionalProcessedLines.value
-  ));
-  await renderBidirectionalTree(graphData, { resetView: false });
+  collapsedBidirectionalNodeIds.value = nextCollapsedNodeIds;
+  await renderCurrentBidirectionalTree({ resetView: false });
 };
 
 // 处理连线点击
