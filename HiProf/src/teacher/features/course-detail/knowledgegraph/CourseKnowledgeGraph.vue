@@ -17,35 +17,61 @@
           AI生成知识图谱
         </button>
 
-        <!-- 布局类型选择 -->
-        <div class="layout-type-controls">
-          <label class="layout-label">布局类型：</label>
-          <div class="layout-buttons">
-            <button
-              class="btn btn-layout-type"
-              :class="{ active: graphSettings.layoutType === 'center' }"
-              @click="switchLayoutType('center')"
-              title="中心布局"
-            >
-              中心
-            </button>
-            <button
-              class="btn btn-layout-type"
-              :class="{ active: graphSettings.layoutType === 'tree' }"
-              @click="switchLayoutType('tree')"
-              title="树形布局"
-            >
-              树形
-            </button>
-            <button
-              class="btn btn-layout-type"
-              :class="{ active: graphSettings.layoutType === 'bidirectional-tree' }"
-              @click="switchLayoutType('bidirectional-tree')"
-              title="双向树布局"
-            >
-              双向树
-            </button>
+        <div class="graph-viewer-tools">
+          <div class="graph-search">
+            <input
+              v-model.trim="graphSearchKeyword"
+              class="graph-search-input"
+              type="search"
+              placeholder="搜索知识点"
+              @keydown.enter.prevent="selectGraphSearchResult(graphSearchResults[0])"
+            />
+            <div v-if="graphSearchKeyword" class="graph-search-popover">
+              <div class="graph-search-status">{{ graphSearchStatus }}</div>
+              <button
+                v-for="result in graphSearchResults"
+                :key="result.id"
+                type="button"
+                class="graph-search-result"
+                @click="selectGraphSearchResult(result)"
+              >
+                {{ getGraphNodeDisplayText(result) }}
+              </button>
+              <button
+                v-if="graphSearchKeyword"
+                type="button"
+                class="graph-search-clear"
+                @click="clearGraphSearch"
+              >
+                清空搜索
+              </button>
+            </div>
           </div>
+
+          <div class="layout-type-controls">
+            <label class="layout-label">查看方式：</label>
+            <div class="layout-buttons">
+              <button
+                v-for="layout in layoutOptions"
+                :key="layout.value"
+                class="btn btn-layout-type"
+                :class="{ active: graphSettings.layoutType === layout.value }"
+                :title="layout.title"
+                @click="switchLayoutType(layout.value)"
+              >
+                {{ layout.label }}
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            class="btn btn-view-tool"
+            :disabled="!currentKnowledgeGraph || loading"
+            @click="fitGraphView"
+          >
+            适配视图
+          </button>
         </div>
       </div>
     </div>
@@ -68,8 +94,10 @@
           :graphId="currentKnowledgeGraph.id"
           :course-name="courseName"
           :settings="graphSettings"
+          :interaction-state="graphInteractionState"
           @node-click="handleTreeNodeClick"
           @line-click="handleTreeLineClick"
+          @canvas-click="clearGraphFocus"
         />
 
         <!-- 树形布局组件 -->
@@ -80,8 +108,10 @@
           :graphId="currentKnowledgeGraph.id"
           :course-name="courseName"
           :settings="graphSettings"
+          :interaction-state="graphInteractionState"
           @node-click="handleTreeNodeClick"
           @line-click="handleTreeLineClick"
+          @canvas-click="clearGraphFocus"
         />
 
         <!-- 双向树布局组件 -->
@@ -92,8 +122,10 @@
           :graphId="currentKnowledgeGraph.id"
           :course-name="courseName"
           :settings="graphSettings"
+          :interaction-state="graphInteractionState"
           @node-click="handleTreeNodeClick"
           @line-click="handleTreeLineClick"
+          @canvas-click="clearGraphFocus"
         />
       </div>
 
@@ -127,7 +159,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { getCourseKnowledgeGraphList, updateNode } from '@/api/graph';
 import { getNodeDetail } from '@/api/node';
@@ -161,6 +193,30 @@ const courseName = ref('课程知识图谱');
 const treeLayoutRef = ref(null); // TreeLayoutComponent引用
 const centerLayoutRef = ref(null); // CenterLayoutComponent引用
 const bidirectionalTreeLayoutRef = ref(null); // BidirectionalTreeLayoutComponent引用
+const graphSearchKeyword = ref('');
+const graphSearchResults = ref([]);
+const graphInteractionState = ref({
+  selectedNodeId: null
+});
+const GRAPH_PANEL_TRANSITION_DELAY_MS = 320;
+
+const layoutOptions = [
+  {
+    value: 'tree',
+    label: '结构阅读',
+    title: '从左到右阅读课程结构'
+  },
+  {
+    value: 'bidirectional-tree',
+    label: '双向展开',
+    title: '从课程主干向左右展开分支'
+  },
+  {
+    value: 'center',
+    label: '关系探索',
+    title: '探索知识点之间的复杂关系'
+  }
+];
 
 // 图谱设置数据
 const graphSettings = ref({
@@ -174,6 +230,107 @@ const graphSettings = ref({
   maxNodes: 100,
   enableAnimation: true
 });
+
+const graphSearchStatus = computed(() => {
+  if (!graphSearchKeyword.value) {
+    return '';
+  }
+
+  if (graphSearchResults.value.length === 0) {
+    return '未找到相关知识点';
+  }
+
+  return `找到 ${graphSearchResults.value.length} 个结果`;
+});
+
+const getActiveLayoutRef = () => {
+  if (graphSettings.value.layoutType === 'center') {
+    return centerLayoutRef.value;
+  }
+
+  if (graphSettings.value.layoutType === 'tree') {
+    return treeLayoutRef.value;
+  }
+
+  return bidirectionalTreeLayoutRef.value;
+};
+
+const getGraphNodeDisplayText = (node) => {
+  return node?.text || node?.name || node?.data?.fullText || `节点${node?.id || ''}`;
+};
+
+const runGraphSearch = () => {
+  const activeLayout = getActiveLayoutRef();
+  if (!graphSearchKeyword.value || !activeLayout?.searchNodes) {
+    graphSearchResults.value = [];
+    return;
+  }
+
+  graphSearchResults.value = activeLayout.searchNodes(graphSearchKeyword.value).slice(0, 8);
+};
+
+const clearGraphSearch = () => {
+  graphSearchKeyword.value = '';
+  graphSearchResults.value = [];
+};
+
+const setSelectedGraphNodeId = (nodeId) => {
+  graphInteractionState.value = {
+    ...graphInteractionState.value,
+    selectedNodeId: nodeId ? String(nodeId) : null
+  };
+};
+
+const focusGraphNode = async (node) => {
+  if (!node?.id) {
+    return;
+  }
+
+  setSelectedGraphNodeId(node.id);
+  await nextTick();
+  const activeLayout = getActiveLayoutRef();
+  await activeLayout?.focusNodeById?.(String(node.id));
+};
+
+const waitForGraphPanelTransition = () => {
+  return new Promise(resolve => window.setTimeout(resolve, GRAPH_PANEL_TRANSITION_DELAY_MS));
+};
+
+const focusGraphNodeAfterPanelUpdate = async (node, shouldWaitForPanelTransition = false) => {
+  if (!node?.id) {
+    return;
+  }
+
+  const targetNodeId = String(node.id);
+  await nextTick();
+
+  if (shouldWaitForPanelTransition) {
+    await waitForGraphPanelTransition();
+  }
+
+  if (graphInteractionState.value.selectedNodeId !== targetNodeId || !showNodeEditDialog.value) {
+    return;
+  }
+
+  await focusGraphNode(node);
+};
+
+const selectGraphSearchResult = async (node) => {
+  if (!node) {
+    return;
+  }
+
+  await handleTreeNodeClick(node);
+};
+
+const fitGraphView = async () => {
+  const activeLayout = getActiveLayoutRef();
+  await activeLayout?.fitView?.();
+};
+
+const clearGraphFocus = () => {
+  setSelectedGraphNodeId(null);
+};
 
 const loadCourseInfo = async () => {
   try {
@@ -253,6 +410,7 @@ const switchLayoutType = async (layoutType) => {
 
     // 触发图谱重新渲染
     await nextTick();
+    runGraphSearch();
 
   } catch (error) {
     console.error('切换布局类型失败:', error);
@@ -282,6 +440,8 @@ const handleTreeNodeClick = async (node) => {
   }
 
   console.log('CourseKnowledgeGraph: 树形节点点击:', node);
+  setSelectedGraphNodeId(node.id);
+  const shouldWaitForPanelTransition = !showNodeEditDialog.value;
 
   let detailContent = node.data?.content || '';
   try {
@@ -299,6 +459,7 @@ const handleTreeNodeClick = async (node) => {
   };
 
   showNodeEditDialog.value = true;
+  await focusGraphNodeAfterPanelUpdate(node, shouldWaitForPanelTransition);
 };
 
 // 处理树形布局连线点击
@@ -311,6 +472,7 @@ const handleTreeLineClick = (line) => {
 const handleNodeEditClose = async (options = {}) => {
   showNodeEditDialog.value = false;
   selectedNode.value = null;
+  setSelectedGraphNodeId(null);
 
   if (options?.refreshGraph) {
     await refreshKnowledgeGraph();
@@ -394,6 +556,10 @@ watch(() => router.currentRoute.value.path, (newPath, oldPath) => {
       refreshKnowledgeGraph();
     }, 500); // 延迟一点时间确保页面完全加载
   }
+});
+
+watch(graphSearchKeyword, () => {
+  runGraphSearch();
 });
 
 // 组件挂载时加载数据

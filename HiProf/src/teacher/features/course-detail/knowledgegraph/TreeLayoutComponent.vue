@@ -7,6 +7,7 @@
         :options="currentTreeOptions"
         :on-node-click="onNodeClick"
         :on-line-click="onLineClick"
+        :on-canvas-click="onCanvasClick"
         :on-fullscreen="handleRelationGraphFullscreen"
       >
         <template #graph-plug>
@@ -17,16 +18,33 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import RelationGraph, { RGJsonData, RGOptions, RGNode, RGLine, RGLink, RGUserEvent, RelationGraphComponent } from 'relation-graph-vue3';
 import { getKnowledgeGraphNodes, getNodeLines } from '@/api/node';
-import { VIRTUAL_ROOT_NODE_ID, isVirtualRootNode, resolveTopLevelNodeIds } from './graphRootUtils';
+import {
+  VIRTUAL_ROOT_NODE_ID,
+  buildTreeChildrenByParentId,
+  isVirtualRootNode,
+  normalizeNodeId,
+  resolveTreeAncestorNodeIds,
+  resolveTopLevelNodeIds,
+  resolveVisibleTreeNodeIds
+} from './graphRootUtils';
 import GraphFullscreenToggle from './GraphFullscreenToggle.vue';
 import { useGraphFullscreen } from './useGraphFullscreen';
 import {
   applyRelationGraphNodeTextLayout,
+  escapeNodeHtml,
   getMaxRelationGraphNodeSize
 } from '@/shared/features/graph/utils/nodeTextLayout';
+import {
+  applyGraphVisualLineStyle,
+  applyGraphVisualNodeStyle,
+  buildGraphVisualContext,
+  getLineInteractionState,
+  graphVisualTheme,
+  searchGraphNodes
+} from '@/shared/features/graph/utils/graphVisualTheme.js';
 
 // 定义 props
 interface Props {
@@ -43,6 +61,9 @@ interface Props {
     enableDrag?: boolean;
     maxNodes?: number;
     enableAnimation?: boolean;
+  };
+  interactionState?: {
+    selectedNodeId?: string | number | null;
   };
 }
 
@@ -61,17 +82,81 @@ const props = withDefaults(defineProps<Props>(), {
   })
 });
 
+const collapsedTreeNodeIds = ref<Set<string>>(new Set());
+const rawTreeNodes = ref<any[]>([]);
+const rawTreeProcessedNodes = ref<Array<Record<string, unknown>>>([]);
+const rawTreeProcessedLines = ref<Array<Record<string, unknown>>>([]);
+
+const buildTreeToggleHtml = (hasChildren: boolean, isCollapsed: boolean) => {
+  if (!hasChildren) {
+    return '';
+  }
+
+  const toggleText = isCollapsed ? '+' : '-';
+  const toggleLabel = isCollapsed ? '展开子节点' : '收起子节点';
+  return `<button type="button" class="kg-tree-toggle kg-tree-toggle-right" aria-label="${toggleLabel}" title="${toggleLabel}">${toggleText}</button>`;
+};
+
+const buildTreeNodeHtml = (text: string, hasChildren: boolean, isCollapsed: boolean) => {
+  const safeText = escapeNodeHtml(text);
+  return `<div class="kg-tree-node-shell">
+    ${buildTreeToggleHtml(hasChildren, isCollapsed)}
+    <div class="kg-node-label" title="${safeText}">${safeText}</div>
+  </div>`;
+};
+
+const applyTreeNodeToggleState = (
+  node: Record<string, unknown>,
+  childrenByParentId: Map<string, string[]>,
+  visualContext: Record<string, unknown>
+) => {
+  const nodeId = normalizeNodeId(node.id);
+  const hasChildren = Boolean(childrenByParentId.get(nodeId)?.length);
+  const isCollapsed = collapsedTreeNodeIds.value.has(nodeId);
+  const text = String(node.text || '');
+
+  return applyGraphVisualNodeStyle({
+    ...node,
+    expanded: !isCollapsed,
+    expandHolderPosition: 'hide',
+    innerHTML: buildTreeNodeHtml(text, hasChildren, isCollapsed),
+    data: {
+      ...((node.data as Record<string, unknown>) || {}),
+      hasTreeChildren: hasChildren,
+      isTreeCollapsed: isCollapsed
+    }
+  }, visualContext);
+};
+
 const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedNodes: Array<Record<string, unknown>>, processedLines: Array<Record<string, unknown>>) => {
   const rootIds = resolveTopLevelNodeIds(rawNodes);
   const stableRootIds = rootIds.length > 0
     ? rootIds
     : (processedNodes[0]?.id ? [String(processedNodes[0].id)] : []);
+  const childrenByParentId = buildTreeChildrenByParentId(rawNodes, processedLines);
+  const visibleNodeIds = resolveVisibleTreeNodeIds(stableRootIds, childrenByParentId, collapsedTreeNodeIds.value);
+  const visibleProcessedLines = processedLines.filter(line => {
+    return visibleNodeIds.has(normalizeNodeId(line.from)) && visibleNodeIds.has(normalizeNodeId(line.to));
+  });
+  const chapterNodeIds = new Set(stableRootIds.flatMap(rootId => childrenByParentId.get(rootId) || []));
+  const visualContext = buildGraphVisualContext({
+    rootIds: stableRootIds,
+    chapterNodeIds,
+    selectedNodeId: props.interactionState?.selectedNodeId,
+    lines: visibleProcessedLines
+  });
+  const visibleProcessedNodes = processedNodes
+    .filter(node => visibleNodeIds.has(normalizeNodeId(node.id)))
+    .map(node => applyTreeNodeToggleState(node, childrenByParentId, visualContext));
+  const visibleStyledLines = visibleProcessedLines.map(line => {
+    return applyGraphVisualLineStyle(line, getLineInteractionState(line, visualContext.relationSets));
+  });
 
   if (stableRootIds.length <= 1) {
     return {
       rootId: stableRootIds[0] || '',
-      nodes: processedNodes,
-      links: processedLines
+      nodes: visibleProcessedNodes,
+      links: visibleStyledLines
     };
   }
 
@@ -87,6 +172,10 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedNodes
       isVirtualRoot: true
     }
   });
+  const styledVirtualRootNode = applyGraphVisualNodeStyle(
+    applyTreeNodeToggleState(virtualRootNode, childrenByParentId, visualContext),
+    visualContext
+  );
 
   const virtualLinks = stableRootIds.map((rootId, index) => ({
     from: VIRTUAL_ROOT_NODE_ID,
@@ -97,8 +186,11 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedNodes
 
   return {
     rootId: VIRTUAL_ROOT_NODE_ID,
-    nodes: [virtualRootNode, ...processedNodes],
-    links: [...virtualLinks, ...processedLines]
+    nodes: [styledVirtualRootNode, ...visibleProcessedNodes],
+    links: [
+      ...virtualLinks.map(line => applyGraphVisualLineStyle(line)),
+      ...visibleStyledLines
+    ]
   };
 };
 
@@ -106,6 +198,7 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedNodes
 const emit = defineEmits<{
   nodeClick: [node: RGNode, event: RGUserEvent];
   lineClick: [line: RGLine, link: RGLink, event: RGUserEvent];
+  canvasClick: [event: RGUserEvent];
 }>();
 
 // 响应式数据
@@ -128,7 +221,7 @@ const horizontalTreeOptions: RGOptions = {
   'backgroundImageNoRepeat': true,
   'moveToCenterWhenRefresh': false,
   'zoomToFitWhenRefresh': false,
-  'defaultNodeBorderWidth': 0,
+  'defaultNodeBorderWidth': 1,
   'defaultNodeShape': 1,
   'layout': {
     'label': '水平树形',
@@ -148,11 +241,8 @@ const horizontalTreeOptions: RGOptions = {
     'force_line_elastic': 1
   },
   'defaultLineMarker': {
-    'markerWidth': 12,
-    'markerHeight': 12,
-    'refX': 6,
-    'refY': 6,
-    'data': 'M2,2 L10,6 L2,10 L6,6 L2,2'
+    ...graphVisualTheme.lineMarker,
+    'color': graphVisualTheme.line.default
   },
   // 移除重复的 defaultNodeShape，已在第70行定义
   'defaultNodeWidth': 150,  // 更长的节点宽度，3:1比例
@@ -160,10 +250,12 @@ const horizontalTreeOptions: RGOptions = {
   'defaultLineShape': 1,  // 使用直线连接
   'defaultJunctionPoint': 'lr',  // 长方形节点使用左右连接点
   // 移除重复的 defaultNodeBorderWidth，已在第69行定义
-  'defaultLineColor': 'rgba(0, 186, 189, 1)',
-  'defaultNodeColor': 'rgba(0, 206, 209, 1)',
-  'defaultNodeFontColor': '#000000',  // 默认黑色字体
-  'defaultNodeFontSize': 16,  // 增大字体到16px
+  'defaultLineColor': '#111827',
+  'defaultLineWidth': 2,
+  'defaultNodeColor': '#ffffff',
+  'defaultNodeFontColor': '#1e293b',
+  'defaultNodeFontSize': 13,
+  'defaultExpandHolderPosition': 'hide',
   'allowShowFullscreenMenu': false,
   'allowShowMiniToolBar': true,
   'allowShowMiniView': true
@@ -294,12 +386,13 @@ const loadRealGraphData = async () => {
     const processedNodes = nodes.map(node => applyRelationGraphNodeTextLayout({
       id: node.id.toString(),
       text: node.name || `节点${node.id}`,
-      borderColor: 'rgba(0, 206, 209, 1)',
-      fontColor: '#000000',  // 黑色字体
-      color: 'rgba(0, 206, 209, 0.1)',
+      borderColor: '#cbd5e1',
+      fontColor: '#1e293b',
+      color: '#ffffff',
       data: {
         content: node.content || '',
-        category: node.category || 'default'
+        category: node.category || 'default',
+        originalData: node
       }
     }));
 
@@ -320,6 +413,11 @@ const loadRealGraphData = async () => {
       text: line.content || '',
       id: line.id ? line.id.toString() : `line_${index}`
     })).filter(line => line.from && line.to);
+
+    collapsedTreeNodeIds.value = new Set();
+    rawTreeNodes.value = nodes;
+    rawTreeProcessedNodes.value = processedNodes;
+    rawTreeProcessedLines.value = processedLines;
 
     // 5. 构建图谱数据
     const graphData = buildGraphData(nodes, processedNodes, processedLines);
@@ -344,7 +442,8 @@ const loadRealGraphData = async () => {
 
 
 // 渲染树形图谱
-const renderTreeGraph = async (graphData: any) => {
+const renderTreeGraph = async (graphData: any, options: { resetView?: boolean } = {}) => {
+  const { resetView = true } = options;
   const graphInstance = treeGraphRef.value?.getInstance();
   if (graphInstance) {
     try {
@@ -367,13 +466,84 @@ const renderTreeGraph = async (graphData: any) => {
 
       await graphInstance.setOptions(updatedOptions);
       await graphInstance.setJsonData(graphData);
-      await graphInstance.moveToCenter();
-      await graphInstance.zoomToFit();
+      if (resetView) {
+        await graphInstance.moveToCenter();
+        await graphInstance.zoomToFit();
+      }
       console.log(`TreeLayoutComponent: 图谱渲染完成 (节点数: ${nodeCount}, 最大深度: ${maxDepth})`);
     } catch (error) {
       console.error('TreeLayoutComponent: 图谱渲染失败:', error);
     }
   }
+};
+
+const refreshTreeVisualState = async () => {
+  if (!rawTreeNodes.value.length || !rawTreeProcessedNodes.value.length) {
+    return;
+  }
+
+  const graphData = buildGraphData(rawTreeNodes.value, rawTreeProcessedNodes.value, rawTreeProcessedLines.value);
+  await renderTreeGraph(graphData, { resetView: false });
+};
+
+const searchNodes = (keyword: string) => {
+  return searchGraphNodes(keyword, rawTreeProcessedNodes.value);
+};
+
+const revealTreeNodePath = async (nodeId: string) => {
+  const ancestorNodeIds = resolveTreeAncestorNodeIds(
+    nodeId,
+    rawTreeNodes.value,
+    rawTreeProcessedLines.value
+  );
+  if (ancestorNodeIds.length === 0) {
+    return;
+  }
+
+  const nextCollapsedNodeIds = new Set(collapsedTreeNodeIds.value);
+  let hasChanged = false;
+  ancestorNodeIds.forEach(ancestorNodeId => {
+    if (nextCollapsedNodeIds.delete(ancestorNodeId)) {
+      hasChanged = true;
+    }
+  });
+
+  if (!hasChanged) {
+    return;
+  }
+
+  collapsedTreeNodeIds.value = nextCollapsedNodeIds;
+  const graphData = buildGraphData(rawTreeNodes.value, rawTreeProcessedNodes.value, rawTreeProcessedLines.value);
+  await renderTreeGraph(graphData, { resetView: false });
+  await nextTick();
+};
+
+const focusNodeById = async (nodeId: string) => {
+  const normalizedNodeId = normalizeNodeId(nodeId);
+  if (!normalizedNodeId) {
+    return;
+  }
+
+  await revealTreeNodePath(normalizedNodeId);
+
+  const graphInstance = treeGraphRef.value?.getInstance();
+  if (!graphInstance) {
+    return;
+  }
+
+  if (typeof (graphInstance as any).focusNodeById === 'function') {
+    await (graphInstance as any).focusNodeById(normalizedNodeId);
+  }
+};
+
+const fitView = async () => {
+  const graphInstance = treeGraphRef.value?.getInstance();
+  if (!graphInstance) {
+    return;
+  }
+
+  await graphInstance.moveToCenter();
+  await graphInstance.zoomToFit();
 };
 
 // 计算图谱的最大深度
@@ -451,10 +621,16 @@ const switchTreeLayout = async (newLayoutType?: 'horizontal' | 'vertical') => {
   }
 };
 
-// 注释：这个defineExpose将与下面的合并
-
 // 处理节点点击
 const onNodeClick = (nodeObject: RGNode, $event: RGUserEvent) => {
+  const target = $event?.target as HTMLElement | undefined;
+  if (target?.closest?.('.kg-tree-toggle')) {
+    void toggleTreeNode(nodeObject, $event).catch((error) => {
+      console.error('TreeLayoutComponent: 切换节点展开状态失败:', error);
+    });
+    return false;
+  }
+
   if (isVirtualRootNode(nodeObject)) {
     return;
   }
@@ -462,10 +638,35 @@ const onNodeClick = (nodeObject: RGNode, $event: RGUserEvent) => {
   emit('nodeClick', nodeObject, $event);
 };
 
+const toggleTreeNode = async (nodeObject: RGNode, event?: Event) => {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+
+  const nodeId = normalizeNodeId(nodeObject?.id);
+  if (!nodeId || isVirtualRootNode(nodeObject) || nodeObject.data?.hasTreeChildren !== true) {
+    return;
+  }
+
+  const nextCollapsedNodeIds = new Set(collapsedTreeNodeIds.value);
+  if (nextCollapsedNodeIds.has(nodeId)) {
+    nextCollapsedNodeIds.delete(nodeId);
+  } else {
+    nextCollapsedNodeIds.add(nodeId);
+  }
+  collapsedTreeNodeIds.value = nextCollapsedNodeIds;
+
+  const graphData = buildGraphData(rawTreeNodes.value, rawTreeProcessedNodes.value, rawTreeProcessedLines.value);
+  await renderTreeGraph(graphData, { resetView: false });
+};
+
 // 处理连线点击
 const onLineClick = (lineObject: RGLine, linkObject: RGLink, $event: RGUserEvent) => {
   console.log('TreeLayoutComponent: 连线点击:', lineObject);
   emit('lineClick', lineObject, linkObject, $event);
+};
+
+const onCanvasClick = ($event: RGUserEvent) => {
+  emit('canvasClick', $event);
 };
 
 // 监听设置变化
@@ -479,6 +680,10 @@ watch(() => props.settings.treeDirection, (newDirection) => {
 
 watch(() => [props.courseId, props.graphId, props.courseName], () => {
   loadRealGraphData();
+}, { immediate: false });
+
+watch(() => props.interactionState?.selectedNodeId, () => {
+  void refreshTreeVisualState();
 }, { immediate: false });
 
 // 组件挂载后加载数据
@@ -498,6 +703,9 @@ onBeforeUnmount(() => {
 defineExpose({
   loadRealGraphData,
   switchTreeLayout,
+  searchNodes,
+  focusNodeById,
+  fitView,
   getCurrentTreeType: () => currentTreeType.value,
   setTreeType: (type: 'horizontal' | 'vertical') => {
     currentTreeType.value = type;
@@ -521,12 +729,12 @@ defineExpose({
 
 ::v-deep(.relation-graph) {
   .c-node-text {
-    padding: 6px 10px !important;  /* 增加内边距 */
+    padding: 4px 8px !important;
     place-items: center;
     justify-content: center;
-    color: #000000 !important;  /* 强制黑色字体 */
-    font-size: 16px !important;  /* 增大字体到16px */
-    font-weight: 500 !important;  /* 增加字体粗细 */
+    color: inherit !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
     line-height: 1.2 !important;
   }
 
@@ -534,10 +742,10 @@ defineExpose({
   .rel-node-text,
   .rel-node .c-node-text,
   .rel-node text {
-    fill: #000000 !important;
-    color: #000000 !important;
-    font-size: 16px !important;  /* 增大字体到16px */
-    font-weight: 500 !important;  /* 增加字体粗细 */
+    fill: currentColor !important;
+    color: inherit !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
   }
 }
 
@@ -556,6 +764,42 @@ defineExpose({
   word-break: break-word;
   overflow-wrap: anywhere;
   text-align: center;
+}
+
+::v-deep(.kg-tree-node-shell) {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+::v-deep(.kg-tree-toggle) {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #2563eb;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 16px;
+  padding: 0;
+  transform: translateY(-50%);
+  z-index: 5;
+}
+
+::v-deep(.kg-tree-toggle-right) {
+  right: -20px;
+}
+
+::v-deep(.kg-tree-toggle:hover) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
 }
 
 

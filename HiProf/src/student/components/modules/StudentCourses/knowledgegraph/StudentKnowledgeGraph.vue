@@ -34,6 +34,8 @@
         frameborder="0"
         @load="onGraphIframeLoad"
         @error="handleIframeError"
+        allow="fullscreen"
+        allowfullscreen
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
       ></iframe>
     </div>
@@ -313,7 +315,6 @@ defineExpose({
   text-align: center;
 }
 </style>
-
 
 
 

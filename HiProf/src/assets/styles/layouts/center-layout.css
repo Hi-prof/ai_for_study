@@ -1,8 +1,6 @@
-/* 中心布局专用样式 - relation-graph 自定义圆形节点 */
+/* 关系探索力导图样式 - relation-graph 自定义圆形图标节点 */
 .layout-center {
-  background:
-    radial-gradient(circle at 50% 48%, rgba(14, 165, 162, 0.08), transparent 30%),
-    linear-gradient(180deg, #f8fbff 0%, #f3f6fb 100%);
+  background: #f8fafc;
 }
 
 .layout-center .rel-node,
@@ -42,6 +40,7 @@
   box-sizing: border-box;
   border-radius: 50%;
   cursor: pointer;
+  user-select: none;
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
 }
 
@@ -88,6 +87,25 @@
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.58),
     0 14px 30px rgba(15, 76, 117, 0.28);
+}
+
+.layout-center .rel-node.kg-center-node.kg-graph-node-selected {
+  opacity: 1 !important;
+}
+
+.layout-center .rel-node.kg-center-node.kg-graph-node-selected .kg-center-node-shell {
+  border-color: #2563eb !important;
+  box-shadow:
+    0 0 0 3px rgba(37, 99, 235, 0.14),
+    0 14px 28px rgba(37, 99, 235, 0.2) !important;
+}
+
+.layout-center .rel-node.kg-center-node.kg-graph-node-related .kg-center-node-shell {
+  border-color: #60a5fa !important;
+}
+
+.layout-center .rel-node.kg-center-node.kg-graph-node-muted {
+  opacity: 0.34 !important;
 }
 
 .layout-center .kg-center-icon {
@@ -191,13 +209,13 @@
 
 .layout-center .c-rg-line,
 .layout-center .rel-line {
-  stroke: #d5dee8 !important;
-  stroke-width: 1.15px !important;
-  opacity: 0.86;
+  stroke: #111827 !important;
+  stroke-width: 3px !important;
+  opacity: 0.78;
 }
 
 .layout-center .c-rg-line-bg {
-  stroke-width: 8px !important;
+  stroke-width: 10px !important;
 }
 
 .layout-center .c-rg-line-text,
@@ -213,8 +231,24 @@
 
 .layout-center .rel-link-peel:hover .c-rg-line,
 .layout-center .rel-line:hover {
-  stroke: #8fb1c7 !important;
-  stroke-width: 1.6px !important;
+  stroke: #000000 !important;
+  stroke-width: 3.75px !important;
+}
+
+.layout-center .kg-graph-line-active,
+.layout-center .rel-line.kg-graph-line-active,
+.layout-center .c-rg-line.kg-graph-line-active {
+  stroke: #000000 !important;
+  stroke-width: 4.25px !important;
+  opacity: 1 !important;
+}
+
+.layout-center .kg-graph-line-muted,
+.layout-center .rel-line.kg-graph-line-muted,
+.layout-center .c-rg-line.kg-graph-line-muted {
+  stroke: #111827 !important;
+  stroke-width: 2px !important;
+  opacity: 0.42 !important;
 }
 
 .layout-center .rel-miniview {

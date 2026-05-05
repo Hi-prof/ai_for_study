@@ -4,6 +4,7 @@ import router from './router';
 import './assets/styles/theme.css';
 import './assets/styles/glassmorphism.css';
 import './assets/styles/components/index.css';
+import './assets/styles/graph-overrides.css';
 
 // 创建Vue应用实例
 const app = createApp(App);

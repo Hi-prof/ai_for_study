@@ -1,5 +1,5 @@
 <template>
-  <div class="graph-container" ref="graphContainer">
+  <div class="graph-container" :class="{ 'is-fullscreen': isGraphFullscreen }" ref="graphContainer">
     <div v-if="isGraphLoading" class="graph-loading">
       <div class="loading-spinner"></div>
       <div class="loading-text">加载知识图谱中...</div>
@@ -20,7 +20,40 @@
       :on-line-click="handleLineClick"
       :on-node-mouseenter="handleNodeHover"
       :on-node-mouseleave="() => hoveredNode = null"
+      :on-canvas-click="handleCanvasClick"
+      :on-fullscreen="handleRelationGraphFullscreen"
     />
+
+    <div v-if="!isGraphLoading && !isEmptyGraph" class="graph-view-toolbar">
+      <div class="graph-view-search">
+        <input
+          v-model.trim="searchKeyword"
+          class="graph-view-search-input"
+          type="search"
+          placeholder="搜索知识点"
+          @keydown.enter.prevent="selectSearchResult(searchResults[0])"
+        />
+        <div v-if="searchKeyword" class="graph-view-search-popover">
+          <div class="graph-view-search-status">{{ searchStatus }}</div>
+          <button
+            v-for="result in searchResults"
+            :key="result.id"
+            type="button"
+            class="graph-view-search-result"
+            @click="selectSearchResult(result)"
+          >
+            {{ getGraphNodeDisplayText(result) }}
+          </button>
+          <button type="button" class="graph-view-search-clear" @click="clearSearch">
+            清空搜索
+          </button>
+        </div>
+      </div>
+      <button type="button" class="graph-view-fit-btn" @click="fitView">适配视图</button>
+      <button type="button" class="graph-view-fit-btn" @click="toggleGraphFullscreen">
+        {{ isGraphFullscreen ? '退出全屏' : '全屏' }}
+      </button>
+    </div>
     
     <div class="node-tooltip" v-if="hoveredNode" :style="tooltipStyle">
       <div class="tooltip-title">{{ hoveredNode.text }}</div>
@@ -37,6 +70,7 @@
       :key="selectedNode.id"
       :node="selectedNode"
       :relatedNodes="relatedNodes"
+      :readonly="props.readonly"
       @save="handleNodeSave"
       @cancel="handleNodeCancel"
       @close="handleNodeClose"
@@ -46,13 +80,20 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, watch, nextTick } from 'vue';
+import { computed, ref, reactive, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import RelationGraph from 'relation-graph-vue3';
 import type { RGNode, RelationGraphComponent } from 'relation-graph-vue3';
 import { getKnowledgeGraphNodes, getNodeLines, getNodeStyle, getNodeDetail, updateNode as updateNodeApi } from '@/api/node';
 import NodeDetailPanel from '@/shared/features/graph/components/graph/NodeDetailPanel.vue';
 import { graphOptions, getCategoryName } from '@/shared/features/graph/utils/graphConfig.js';
 import { processNodeData, processLineData, buildGraphData } from '@/shared/features/graph/utils/graphUtils.js';
+import {
+  applyGraphVisualLineStyle,
+  applyGraphVisualNodeStyle,
+  buildGraphVisualContext,
+  getLineInteractionState,
+  searchGraphNodes
+} from '@/shared/features/graph/utils/graphVisualTheme.js';
 
 // 定义类型接口
 interface Node {
@@ -76,6 +117,7 @@ interface Props {
   courseId?: string | number;
   graphId?: string | number;
   currentCourse?: Course | null;
+  readonly?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -96,12 +138,33 @@ const selectedNode = ref<Node | null>(null);
 const hoveredNode = ref<Node | null>(null);
 const relatedNodes = ref<Node[]>([]);
 const currentLayout = ref('center');
+const currentRawNodes = ref<any[]>([]);
+const currentGraphData = ref<any>(null);
+const searchKeyword = ref('');
+const searchResults = ref<any[]>([]);
+const isGraphFullscreen = ref(false);
 
 
 const tooltipStyle = reactive({
   left: '0px',
   top: '0px'
 });
+
+const searchStatus = computed(() => {
+  if (!searchKeyword.value) {
+    return '';
+  }
+
+  if (searchResults.value.length === 0) {
+    return '未找到相关知识点';
+  }
+
+  return `找到 ${searchResults.value.length} 个结果`;
+});
+
+const getGraphNodeDisplayText = (node: any) => {
+  return node?.text || node?.name || node?.data?.fullText || `节点${node?.id || ''}`;
+};
 
 // 加载图谱数据
 const loadGraphData = async () => {
@@ -134,6 +197,7 @@ const loadGraphData = async () => {
       isEmptyGraph.value = true;
       return;
     }
+    currentRawNodes.value = nodes;
 
     // 2. 处理节点数据 - 添加错误处理
     const processedNodes = await processNodeData(nodes, getNodeStyle);
@@ -183,6 +247,7 @@ const renderGraph = async (graphData: any) => {
       }
 
       console.log('GraphView: 图谱数据验证通过，节点数量:', graphData.nodes.length);
+      currentGraphData.value = graphData;
 
       // 等待组件完全挂载
       await nextTick();
@@ -255,6 +320,108 @@ const renderGraph = async (graphData: any) => {
   });
 };
 
+const buildCurrentGraphVisualContext = (selectedNodeId?: string | number | null) => {
+  const rootId = currentGraphData.value?.rootId;
+  const chapterNodeIds = new Set(
+    currentRawNodes.value
+      .filter(node => {
+        return rootId && node.parentId !== undefined && node.parentId !== null && String(node.parentId) === String(rootId);
+      })
+      .map(node => String(node.id))
+  );
+
+  return buildGraphVisualContext({
+    rootIds: rootId ? [rootId] : [],
+    chapterNodeIds,
+    selectedNodeId,
+    lines: currentGraphData.value?.links || []
+  });
+};
+
+const applyGraphSelectionState = async (selectedNodeId?: string | number | null, shouldFocus = true) => {
+  if (!currentGraphData.value) {
+    return;
+  }
+
+  const graphInstance = graphRef.value?.getInstance();
+  if (!graphInstance) {
+    return;
+  }
+
+  const visualContext = buildCurrentGraphVisualContext(selectedNodeId);
+  const nextGraphData = {
+    ...currentGraphData.value,
+    nodes: (currentGraphData.value.nodes || []).map((node: any) => applyGraphVisualNodeStyle(node, visualContext)),
+    links: (currentGraphData.value.links || []).map((line: any) => {
+      return applyGraphVisualLineStyle(line, getLineInteractionState(line, visualContext.relationSets));
+    })
+  };
+
+  currentGraphData.value = nextGraphData;
+  await graphInstance.setJsonData(nextGraphData);
+
+  if (shouldFocus && selectedNodeId && typeof graphInstance.focusNodeById === 'function') {
+    graphInstance.focusNodeById(String(selectedNodeId));
+  }
+};
+
+const runSearch = () => {
+  searchResults.value = searchGraphNodes(searchKeyword.value, currentGraphData.value?.nodes || []).slice(0, 8);
+};
+
+const clearSearch = () => {
+  searchKeyword.value = '';
+  searchResults.value = [];
+};
+
+const selectSearchResult = async (node: any) => {
+  if (!node) {
+    return;
+  }
+
+  await handleNodeClick(node as RGNode);
+};
+
+const fitView = async () => {
+  const graphInstance = graphRef.value?.getInstance();
+  if (!graphInstance) {
+    return;
+  }
+
+  if (typeof graphInstance.moveToCenter === 'function') {
+    graphInstance.moveToCenter();
+  }
+  if (typeof graphInstance.zoomToFit === 'function') {
+    graphInstance.zoomToFit();
+  }
+};
+
+const syncNativeFullscreenState = () => {
+  isGraphFullscreen.value = document.fullscreenElement === graphContainer.value;
+};
+
+const handleRelationGraphFullscreen = (value: boolean) => {
+  isGraphFullscreen.value = value;
+};
+
+const toggleGraphFullscreen = async () => {
+  const target = graphContainer.value;
+  if (!target) {
+    return;
+  }
+
+  try {
+    if (document.fullscreenElement === target) {
+      await document.exitFullscreen();
+    } else {
+      await target.requestFullscreen();
+    }
+    syncNativeFullscreenState();
+  } catch (error) {
+    console.error('GraphView: 切换全屏失败:', error);
+  }
+};
+
 // 处理节点点击
 const handleNodeClick = async (node: RGNode) => {
   try {
@@ -281,6 +448,7 @@ const handleNodeClick = async (node: RGNode) => {
     selectedNode.value = nodeData;
     emit('nodeSelect', nodeData);
   }
+  await applyGraphSelectionState(node.id);
   
   // 获取关联节点
   const graphInstance = graphRef.value?.getInstance();
@@ -310,6 +478,12 @@ const handleLineClick = () => {
   // 线条点击处理逻辑
 };
 
+const handleCanvasClick = async () => {
+  selectedNode.value = null;
+  relatedNodes.value = [];
+  await applyGraphSelectionState(null, false);
+};
+
 // 处理节点悬停
 const handleNodeHover = (node: any, event: MouseEvent) => {
   if (node) {
@@ -332,6 +506,10 @@ const handleNodeHover = (node: any, event: MouseEvent) => {
 
 // 处理节点保存
 const handleNodeSave = async (updatedNode: any) => {
+  if (props.readonly) {
+    return;
+  }
+
   if (!selectedNode.value) return;
   
   // 更新节点内容
@@ -384,12 +562,14 @@ const handleNodeSave = async (updatedNode: any) => {
 const handleNodeCancel = () => {
   selectedNode.value = null;
   relatedNodes.value = [];
+  applyGraphSelectionState(null, false);
 };
 
 // 处理节点详情关闭
 const handleNodeClose = () => {
   selectedNode.value = null;
   relatedNodes.value = [];
+  applyGraphSelectionState(null, false);
 };
 
 // 处理关联节点选择
@@ -400,6 +580,7 @@ const handleRelatedNodeSelect = async (node: Node) => {
     if (targetNode) {
       // 聚焦到节点
       graphInstance.focusNodeById(node.id);
+      await applyGraphSelectionState(node.id, false);
 
       try {
         // 获取节点详细信息
@@ -434,6 +615,18 @@ watch(() => [props.courseId, props.graphId], async ([newCourseId, newGraphId]) =
   }
 }, { immediate: true });
 
+watch(searchKeyword, () => {
+  runSearch();
+});
+
+onMounted(() => {
+  document.addEventListener('fullscreenchange', syncNativeFullscreenState);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('fullscreenchange', syncNativeFullscreenState);
+});
+
 // 重新加载图谱数据
 const retryLoadGraph = () => {
   loadGraphData();
@@ -453,9 +646,111 @@ defineExpose({
   position: relative;
   width: 100%;
   height: calc(100vh - 120px);
-  background: #f8f9fa;
+  background: #f8fafc;
   border-radius: 8px;
   overflow: hidden;
+}
+
+.graph-container.is-fullscreen,
+.graph-container:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+}
+
+.graph-view-toolbar {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+}
+
+.graph-view-search {
+  position: relative;
+}
+
+.graph-view-search-input {
+  width: 220px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 13px;
+  outline: none;
+}
+
+.graph-view-search-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.graph-view-search-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 280px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid #dbe3ec;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
+}
+
+.graph-view-search-status {
+  padding: 6px 8px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.graph-view-search-result,
+.graph-view-search-clear,
+.graph-view-fit-btn {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #1e293b;
+  cursor: pointer;
+}
+
+.graph-view-search-result,
+.graph-view-search-clear {
+  width: 100%;
+  padding: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.graph-view-search-result:hover,
+.graph-view-search-clear:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.graph-view-fit-btn {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 13px;
+}
+
+.graph-view-fit-btn:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
 }
 
 .graph-loading {
@@ -502,7 +797,7 @@ defineExpose({
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background: #f8f9fa;
+  background: #f8fafc;
 }
 
 .empty-icon {

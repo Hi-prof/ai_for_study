@@ -1,4 +1,10 @@
 import { applyRelationGraphNodeTextLayout } from './nodeTextLayout.js';
+import {
+  applyGraphVisualLineStyle,
+  applyGraphVisualNodeStyle,
+  buildGraphVisualContext,
+  graphVisualTheme
+} from './graphVisualTheme.js';
 
 // 图谱工具函数
 
@@ -137,21 +143,21 @@ export const processNodeData = async (nodes, getNodeStyle) => {
         },
         // 样式相关字段，使用默认值
         type: style?.type || 'default',
-        nodeShape: style?.nodeShape || 0,
-        width: style?.nodeWidth || 75, // 圆形节点宽度
-        height: style?.nodeHeight || 75, // 圆形节点高度
-        borderWidth: style?.borderWidth || 2,
+        nodeShape: 1,
+        width: style?.nodeWidth || 160,
+        height: style?.nodeHeight || 56,
+        borderWidth: style?.borderWidth || 1,
         borderHeight: style?.borderHeight || 2,
-        // 添加默认颜色
-        color: style?.color || '#4299e1',
-        fontColor: style?.fontColor || '#333333'
+        color: graphVisualTheme.node.default.color,
+        borderColor: graphVisualTheme.node.default.borderColor,
+        fontColor: graphVisualTheme.node.default.fontColor
       };
 
       const textLayoutNode = applyRelationGraphNodeTextLayout(processedNode, {
-        minWidth: 96,
-        maxWidth: 180,
-        minHeight: 64,
-        horizontalPadding: 18
+        minWidth: 140,
+        maxWidth: 240,
+        minHeight: 48,
+        horizontalPadding: 24
       });
 
       console.log(`graphUtils: 节点 ${node.id} 处理完成:`, textLayoutNode);
@@ -165,16 +171,19 @@ export const processNodeData = async (nodes, getNodeStyle) => {
         text: node.name || `节点${node.id}`,
         data: {
           content: node.content || '',
-          category: 'default'
+          category: node.category || 'default',
+          originalData: node
         },
         type: 'default',
-        color: '#4299e1',
-        fontColor: '#333333'
+        nodeShape: 1,
+        color: graphVisualTheme.node.default.color,
+        borderColor: graphVisualTheme.node.default.borderColor,
+        fontColor: graphVisualTheme.node.default.fontColor
       }, {
-        minWidth: 96,
-        maxWidth: 180,
-        minHeight: 64,
-        horizontalPadding: 18
+        minWidth: 140,
+        maxWidth: 240,
+        minHeight: 48,
+        horizontalPadding: 24
       });
     }
   });
@@ -255,6 +264,23 @@ export const buildGraphData = (nodes, processedNodes, processedLines) => {
     nodes: processedNodes,
     links: processedLines || [] // 确保links不为undefined
   };
+
+  const chapterNodeIds = new Set(
+    nodes
+      .filter(node => {
+        return rootId && node.parentId !== undefined && node.parentId !== null && String(node.parentId) === String(rootId);
+      })
+      .map(node => String(node.id))
+  );
+  const visualContext = buildGraphVisualContext({
+    rootIds: rootId ? [rootId] : [],
+    chapterNodeIds,
+    selectedNodeId: null,
+    lines: graphData.links
+  });
+
+  graphData.nodes = processedNodes.map(node => applyGraphVisualNodeStyle(node, visualContext));
+  graphData.links = graphData.links.map(line => applyGraphVisualLineStyle(line));
 
   console.log('graphUtils: 图谱数据构建完成:', graphData);
 

@@ -7,6 +7,7 @@
         :options="currentBidirectionalOptions"
         :on-node-click="onNodeClick"
         :on-line-click="onLineClick"
+        :on-canvas-click="onCanvasClick"
         :on-fullscreen="handleRelationGraphFullscreen"
       >
         <template #graph-plug>
@@ -17,7 +18,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import RelationGraph, { 
   RGJsonData, 
   RGOptions, 
@@ -29,13 +30,30 @@ import RelationGraph, {
   RGTreeLayoutOptions 
 } from 'relation-graph-vue3';
 import { getKnowledgeGraphNodes, getNodeLines } from '@/api/node';
-import { VIRTUAL_ROOT_NODE_ID, isVirtualRootNode, resolveTopLevelNodeIds } from './graphRootUtils';
+import {
+  VIRTUAL_ROOT_NODE_ID,
+  buildTreeChildrenByParentId,
+  isVirtualRootNode,
+  normalizeNodeId,
+  resolveTreeAncestorNodeIds,
+  resolveTopLevelNodeIds,
+  resolveVisibleTreeNodeIds
+} from './graphRootUtils';
 import GraphFullscreenToggle from './GraphFullscreenToggle.vue';
 import { useGraphFullscreen } from './useGraphFullscreen';
 import {
   applyRelationGraphNodeTextLayout,
+  escapeNodeHtml,
   getMaxRelationGraphNodeSize
 } from '@/shared/features/graph/utils/nodeTextLayout';
+import {
+  applyGraphVisualLineStyle,
+  applyGraphVisualNodeStyle,
+  buildGraphVisualContext,
+  getLineInteractionState,
+  graphVisualTheme,
+  searchGraphNodes
+} from '@/shared/features/graph/utils/graphVisualTheme.js';
 
 // 定义 props
 interface Props {
@@ -52,6 +70,9 @@ interface Props {
     enableDrag?: boolean;
     maxNodes?: number;
     enableAnimation?: boolean;
+  };
+  interactionState?: {
+    selectedNodeId?: string | number | null;
   };
 }
 
@@ -70,21 +91,90 @@ const props = withDefaults(defineProps<Props>(), {
   })
 });
 
+const collapsedBidirectionalNodeIds = ref<Set<string>>(new Set());
+const rawBidirectionalNodes = ref<any[]>([]);
+const rawBidirectionalProcessedNodes = ref<Array<Record<string, unknown>>>([]);
+const rawBidirectionalProcessedLines = ref<Array<Record<string, unknown>>>([]);
+
+const buildBidirectionalToggleHtml = (hasChildren: boolean, isCollapsed: boolean, position: 'left' | 'right') => {
+  if (!hasChildren) {
+    return '';
+  }
+
+  const toggleText = isCollapsed ? '+' : '-';
+  const toggleLabel = isCollapsed ? '展开子节点' : '收起子节点';
+  return `<button type="button" class="kg-tree-toggle kg-tree-toggle-${position}" aria-label="${toggleLabel}" title="${toggleLabel}">${toggleText}</button>`;
+};
+
+const buildBidirectionalNodeHtml = (
+  text: string,
+  hasChildren: boolean,
+  isCollapsed: boolean,
+  position: 'left' | 'right' = 'right'
+) => {
+  const safeText = escapeNodeHtml(text);
+  return `<div class="kg-tree-node-shell">
+    ${buildBidirectionalToggleHtml(hasChildren, isCollapsed, position)}
+    <div class="kg-node-label" title="${safeText}">${safeText}</div>
+  </div>`;
+};
+
+const applyBidirectionalToggleState = (
+  node: Record<string, unknown>,
+  childrenByParentId: Map<string, string[]>,
+  visualContext: Record<string, unknown>
+) => {
+  const nodeId = normalizeNodeId(node.id);
+  const hasChildren = Boolean(childrenByParentId.get(nodeId)?.length);
+  const isCollapsed = collapsedBidirectionalNodeIds.value.has(nodeId);
+  const text = String(node.text || '');
+
+  return applyGraphVisualNodeStyle({
+    ...node,
+    expanded: !isCollapsed,
+    expandHolderPosition: 'hide',
+    innerHTML: buildBidirectionalNodeHtml(text, hasChildren, isCollapsed),
+    data: {
+      ...((node.data as Record<string, unknown>) || {}),
+      hasTreeChildren: hasChildren,
+      isTreeCollapsed: isCollapsed
+    }
+  }, visualContext);
+};
+
 const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedNodes: Array<Record<string, unknown>>, processedLines: Array<Record<string, unknown>>) => {
   const rootIds = resolveTopLevelNodeIds(rawNodes);
   const stableRootIds = rootIds.length > 0
     ? rootIds
     : (processedNodes[0]?.id ? [String(processedNodes[0].id)] : []);
+  const childrenByParentId = buildTreeChildrenByParentId(rawNodes, processedLines);
+  const visibleNodeIds = resolveVisibleTreeNodeIds(stableRootIds, childrenByParentId, collapsedBidirectionalNodeIds.value);
+  const visibleProcessedLines = processedLines.filter(line => {
+    return visibleNodeIds.has(normalizeNodeId(line.from)) && visibleNodeIds.has(normalizeNodeId(line.to));
+  });
+  const chapterNodeIds = new Set(stableRootIds.flatMap(rootId => childrenByParentId.get(rootId) || []));
+  const visualContext = buildGraphVisualContext({
+    rootIds: stableRootIds,
+    chapterNodeIds,
+    selectedNodeId: props.interactionState?.selectedNodeId,
+    lines: visibleProcessedLines
+  });
+  const visibleProcessedNodes = processedNodes
+    .filter(node => visibleNodeIds.has(normalizeNodeId(node.id)))
+    .map(node => applyBidirectionalToggleState(node, childrenByParentId, visualContext));
+  const visibleStyledLines = visibleProcessedLines.map(line => {
+    return applyGraphVisualLineStyle(line, getLineInteractionState(line, visualContext.relationSets));
+  });
 
   if (stableRootIds.length <= 1) {
     return {
       rootId: stableRootIds[0] || '',
-      nodes: processedNodes,
-      links: processedLines
+      nodes: visibleProcessedNodes,
+      links: visibleStyledLines
     };
   }
 
-  const virtualRootNode = applyRelationGraphNodeTextLayout({
+  const virtualRootNode = applyGraphVisualNodeStyle(applyRelationGraphNodeTextLayout({
     id: VIRTUAL_ROOT_NODE_ID,
     text: props.courseName || '课程知识图谱',
     borderColor: '#f59e0b',
@@ -95,7 +185,7 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedNodes
       category: 'virtual-root',
       isVirtualRoot: true
     }
-  });
+  }), visualContext);
 
   const virtualLinks = stableRootIds.map((rootId, index) => ({
     from: VIRTUAL_ROOT_NODE_ID,
@@ -106,8 +196,11 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedNodes
 
   return {
     rootId: VIRTUAL_ROOT_NODE_ID,
-    nodes: [virtualRootNode, ...processedNodes],
-    links: [...virtualLinks, ...processedLines]
+    nodes: [virtualRootNode, ...visibleProcessedNodes],
+    links: [
+      ...virtualLinks.map(line => applyGraphVisualLineStyle(line)),
+      ...visibleStyledLines
+    ]
   };
 };
 
@@ -115,6 +208,7 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedNodes
 const emit = defineEmits<{
   nodeClick: [node: RGNode, event: RGUserEvent];
   lineClick: [line: RGLine, link: RGLink, event: RGUserEvent];
+  canvasClick: [event: RGUserEvent];
 }>();
 
 // 响应式数据
@@ -135,7 +229,7 @@ const horizontalBidirectionalOptions: RGOptions = {
   'backgroundImageNoRepeat': true,
   'moveToCenterWhenRefresh': false,
   'zoomToFitWhenRefresh': false,
-  'defaultNodeBorderWidth': 0,
+  'defaultNodeBorderWidth': 1,
   'defaultNodeShape': 1,
   'layout': {
     'label': '水平双向树',
@@ -154,20 +248,19 @@ const horizontalBidirectionalOptions: RGOptions = {
     'force_line_elastic': 1
   },
   'defaultLineMarker': {
-    'markerWidth': 12,
-    'markerHeight': 12,
-    'refX': 6,
-    'refY': 6,
-    'data': 'M2,2 L10,6 L2,10 L6,6 L2,2'
+    ...graphVisualTheme.lineMarker,
+    'color': graphVisualTheme.line.default
   },
   // 移除重复的 defaultNodeShape，已在第80行定义
   'defaultNodeWidth': 150,  // 更长的节点宽度
   'defaultNodeHeight': 50,  // 保持较小的高度，形成3:1的长宽比
   'defaultLineShape': 4,  // 使用曲线连接，更适合双向树
   'defaultJunctionPoint': 'lr',  // 长方形节点使用左右连接点
-  'defaultLineColor': '#95a5a6',
-  'defaultNodeColor': '#e2e8f0',  // 默认浅灰色
-  'defaultNodeFontColor': '#1f2937',  // 深灰色字体，确保在浅色背景上可读
+  'defaultLineColor': '#111827',
+  'defaultLineWidth': 2,
+  'defaultNodeColor': '#ffffff',
+  'defaultNodeFontColor': '#1e293b',
+  'defaultExpandHolderPosition': 'hide',
   'defaultLineTextOffset_x': -8,
   'defaultLineTextOffset_y': -1,
   'allowShowFullscreenMenu': false,
@@ -374,6 +467,14 @@ const applyBidirectionalPositions = (graphData: any) => {
     root.y = 0;
     root.fixed = true;
     root.data = { ...(root.data || {}), branchSide: 'root' };
+    if (root.data.hasTreeChildren === true) {
+      root.innerHTML = buildBidirectionalNodeHtml(
+        String(root.text || ''),
+        true,
+        root.data.isTreeCollapsed === true,
+        'right'
+      );
+    }
   }
 
   const {
@@ -436,6 +537,14 @@ const placeBranch = (
     ...(node.data || {}),
     branchSide: side === 1 ? 'right' : 'left'
   };
+  if (node.data.hasTreeChildren === true) {
+    node.innerHTML = buildBidirectionalNodeHtml(
+      String(node.text || ''),
+      true,
+      node.data.isTreeCollapsed === true,
+      side === 1 ? 'right' : 'left'
+    );
+  }
 
   return children.length ? nextRow : nextRow + 1;
 };
@@ -511,12 +620,13 @@ const loadRealGraphData = async () => {
     const processedNodes = nodes.map(node => applyRelationGraphNodeTextLayout({
       id: node.id.toString(),
       text: node.name || `节点${node.id}`,
-      borderColor: '#94a3b8',
-      fontColor: '#1f2937',  // 深灰色字体，确保可读性
-      color: '#e2e8f0',  // 默认浅灰色
+      borderColor: '#cbd5e1',
+      fontColor: '#1e293b',
+      color: '#ffffff',
       data: {
         content: node.content || '',
-        category: node.category || 'default'
+        category: node.category || 'default',
+        originalData: node
       }
     }));
 
@@ -537,6 +647,11 @@ const loadRealGraphData = async () => {
       text: line.content || '',
       id: line.id ? line.id.toString() : `line_${index}`
     })).filter(line => line.from && line.to);
+
+    collapsedBidirectionalNodeIds.value = new Set();
+    rawBidirectionalNodes.value = nodes;
+    rawBidirectionalProcessedNodes.value = processedNodes;
+    rawBidirectionalProcessedLines.value = processedLines;
 
     // 5. 构建图谱数据
     const graphData = applyBidirectionalPositions(buildGraphData(nodes, processedNodes, processedLines));
@@ -559,7 +674,8 @@ const loadRealGraphData = async () => {
 };
 
 // 渲染双向树图谱
-const renderBidirectionalTree = async (graphData: any) => {
+const renderBidirectionalTree = async (graphData: any, options: { resetView?: boolean } = {}) => {
+  const { resetView = true } = options;
   const graphInstance = bidirectionalTreeRef.value?.getInstance();
   if (graphInstance) {
     try {
@@ -584,27 +700,13 @@ const renderBidirectionalTree = async (graphData: any) => {
       await graphInstance.setOptions(updatedOptions);
       await graphInstance.setJsonData(positionedGraphData);
 
-      // 处理双向树左右分支的颜色
       const leftNodes: RGNode[] = [];
 
       for (const node of graphInstance.getNodes()) {
         if (node.data?.branchSide === 'left') {
-          node.color = '#fff7ed';
-          node.borderColor = '#f59e0b';
-          node.fontColor = '#7c2d12';
           leftNodes.push(node);
-        } else if (node.data?.branchSide === 'right') {
-          node.color = '#ecfeff';
-          node.borderColor = '#0891b2';
-          node.fontColor = '#164e63';
-        } else {
-          node.color = '#e0f2fe';
-          node.borderColor = '#0e7490';
-          node.fontColor = '#0f172a';
         }
       }
-
-      await graphInstance.refresh();
 
       // 处理左侧连线的文本位置
       const leftLines = graphInstance.getLinks()
@@ -615,13 +717,119 @@ const renderBidirectionalTree = async (graphData: any) => {
         line.placeText = 'start';  // 左侧连线文本放在起始位置
       }
 
-      await graphInstance.moveToCenter();
-      await graphInstance.zoomToFit();
+      if (resetView) {
+        await graphInstance.refresh();
+        await graphInstance.moveToCenter();
+        await graphInstance.zoomToFit();
+      } else {
+        (graphInstance as any).updateElementLines?.();
+        (graphInstance as any).dataUpdated?.();
+      }
       console.log(`BidirectionalTreeLayoutComponent: 双向树渲染完成 (节点数: ${nodeCount}, 最大深度: ${maxDepth})`);
     } catch (error) {
       console.error('BidirectionalTreeLayoutComponent: 图谱渲染失败:', error);
     }
   }
+};
+
+const refreshBidirectionalVisualState = async () => {
+  if (!rawBidirectionalNodes.value.length || !rawBidirectionalProcessedNodes.value.length) {
+    return;
+  }
+
+  const graphData = applyBidirectionalPositions(buildGraphData(
+    rawBidirectionalNodes.value,
+    rawBidirectionalProcessedNodes.value,
+    rawBidirectionalProcessedLines.value
+  ));
+  await renderBidirectionalTree(graphData, { resetView: false });
+};
+
+const searchNodes = (keyword: string) => {
+  return searchGraphNodes(keyword, rawBidirectionalProcessedNodes.value);
+};
+
+const revealBidirectionalNodePath = async (nodeId: string) => {
+  const ancestorNodeIds = resolveTreeAncestorNodeIds(
+    nodeId,
+    rawBidirectionalNodes.value,
+    rawBidirectionalProcessedLines.value
+  );
+  if (ancestorNodeIds.length === 0) {
+    return;
+  }
+
+  const nextCollapsedNodeIds = new Set(collapsedBidirectionalNodeIds.value);
+  let hasChanged = false;
+  ancestorNodeIds.forEach(ancestorNodeId => {
+    if (nextCollapsedNodeIds.delete(ancestorNodeId)) {
+      hasChanged = true;
+    }
+  });
+
+  if (!hasChanged) {
+    return;
+  }
+
+  collapsedBidirectionalNodeIds.value = nextCollapsedNodeIds;
+  const graphData = applyBidirectionalPositions(buildGraphData(
+    rawBidirectionalNodes.value,
+    rawBidirectionalProcessedNodes.value,
+    rawBidirectionalProcessedLines.value
+  ));
+  await renderBidirectionalTree(graphData, { resetView: false });
+  await nextTick();
+};
+
+const centerBidirectionalNodeById = (graphInstance: any, nodeId: string) => {
+  const targetNode = graphInstance.getNodeById?.(nodeId);
+  if (!targetNode) {
+    return false;
+  }
+
+  graphInstance.resetViewSize?.(false);
+  const nodeWidth = Number(targetNode.width || currentBidirectionalOptions.value.defaultNodeWidth || 0);
+  const nodeHeight = Number(targetNode.height || currentBidirectionalOptions.value.defaultNodeHeight || 0);
+  graphInstance.setCanvasCenter(
+    Number(targetNode.x || 0) + nodeWidth / 2,
+    Number(targetNode.y || 0) + nodeHeight / 2
+  );
+  graphInstance.setCheckedNode?.(nodeId);
+  graphInstance.refreshNVAnalysisInfo?.();
+  return true;
+};
+
+const focusNodeById = async (nodeId: string) => {
+  const normalizedNodeId = normalizeNodeId(nodeId);
+  if (!normalizedNodeId) {
+    return;
+  }
+
+  await revealBidirectionalNodePath(normalizedNodeId);
+
+  const graphInstance = bidirectionalTreeRef.value?.getInstance();
+  if (!graphInstance) {
+    return;
+  }
+
+  await nextTick();
+  if (centerBidirectionalNodeById(graphInstance, normalizedNodeId)) {
+    return;
+  }
+
+  if (typeof (graphInstance as any).focusNodeById === 'function') {
+    await (graphInstance as any).focusNodeById(normalizedNodeId);
+  }
+};
+
+const fitView = async () => {
+  const graphInstance = bidirectionalTreeRef.value?.getInstance();
+  if (!graphInstance) {
+    return;
+  }
+
+  await graphInstance.moveToCenter();
+  await graphInstance.zoomToFit();
 };
 
 // 计算图谱的最大深度
@@ -671,6 +879,14 @@ const calculateMaxDepth = (graphData: any): number => {
 
 // 处理节点点击
 const onNodeClick = (nodeObject: RGNode, $event: RGUserEvent) => {
+  const target = $event?.target as HTMLElement | undefined;
+  if (target?.closest?.('.kg-tree-toggle')) {
+    void toggleBidirectionalNode(nodeObject, $event).catch((error) => {
+      console.error('BidirectionalTreeLayoutComponent: 切换节点展开状态失败:', error);
+    });
+    return false;
+  }
+
   if (isVirtualRootNode(nodeObject)) {
     return;
   }
@@ -678,10 +894,39 @@ const onNodeClick = (nodeObject: RGNode, $event: RGUserEvent) => {
   emit('nodeClick', nodeObject, $event);
 };
 
+const toggleBidirectionalNode = async (nodeObject: RGNode, event?: Event) => {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+
+  const nodeId = normalizeNodeId(nodeObject?.id);
+  if (!nodeId || isVirtualRootNode(nodeObject) || nodeObject.data?.hasTreeChildren !== true) {
+    return;
+  }
+
+  const nextCollapsedNodeIds = new Set(collapsedBidirectionalNodeIds.value);
+  if (nextCollapsedNodeIds.has(nodeId)) {
+    nextCollapsedNodeIds.delete(nodeId);
+  } else {
+    nextCollapsedNodeIds.add(nodeId);
+  }
+  collapsedBidirectionalNodeIds.value = nextCollapsedNodeIds;
+
+  const graphData = applyBidirectionalPositions(buildGraphData(
+    rawBidirectionalNodes.value,
+    rawBidirectionalProcessedNodes.value,
+    rawBidirectionalProcessedLines.value
+  ));
+  await renderBidirectionalTree(graphData, { resetView: false });
+};
+
 // 处理连线点击
 const onLineClick = (lineObject: RGLine, linkObject: RGLink, $event: RGUserEvent) => {
   console.log('BidirectionalTreeLayoutComponent: 连线点击:', lineObject);
   emit('lineClick', lineObject, linkObject, $event);
+};
+
+const onCanvasClick = ($event: RGUserEvent) => {
+  emit('canvasClick', $event);
 };
 
 
@@ -704,9 +949,16 @@ watch(() => [props.courseId, props.graphId, props.courseName], () => {
   loadRealGraphData();
 }, { immediate: false });
 
+watch(() => props.interactionState?.selectedNodeId, () => {
+  void refreshBidirectionalVisualState();
+}, { immediate: false });
+
 // 暴露方法给父组件
 defineExpose({
-  loadRealGraphData
+  loadRealGraphData,
+  searchNodes,
+  focusNodeById,
+  fitView
 });
 </script>
 
@@ -723,14 +975,12 @@ defineExpose({
   position: relative;
   width: 100%;
   height: calc(100vh);
-  background:
-    radial-gradient(circle at 50% 48%, rgba(14, 116, 144, 0.08), transparent 32%),
-    linear-gradient(180deg, #f8fbff 0%, #f3f6fb 100%);
+  background: #f8fafc;
 }
 
 /* 双向树布局样式 - 内联版本 */
 .layout-bidirectional-tree {
-  background-color: #f3f6fb;
+  background-color: #f8fafc;
 }
 
 /* 节点基础样式 - 强制覆盖白色背景 */
@@ -813,6 +1063,46 @@ defineExpose({
   word-break: break-word;
   overflow-wrap: anywhere;
   text-align: center;
+}
+
+::v-deep(.kg-tree-node-shell) {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+::v-deep(.kg-tree-toggle) {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #2563eb;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 16px;
+  padding: 0;
+  transform: translateY(-50%);
+  z-index: 5;
+}
+
+::v-deep(.kg-tree-toggle-left) {
+  left: -20px;
+}
+
+::v-deep(.kg-tree-toggle-right) {
+  right: -20px;
+}
+
+::v-deep(.kg-tree-toggle:hover) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
 }
 
 

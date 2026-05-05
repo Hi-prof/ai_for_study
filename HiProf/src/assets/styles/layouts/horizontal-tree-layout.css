@@ -1,11 +1,11 @@
-/* 水平树形布局专用样式 - 更长的水平长方形节点，3:1比例 */
+/* 水平树形布局专用样式 */
 .layout-horizontal-tree .rel-node,
 .layout-horizontal-tree .rel-node-peel,
 .layout-horizontal-tree .rel-node-peel-checked,
 .layout-horizontal-tree .rel-nodediv {
   border-radius: 8px !important;
-  width: 150px !important;  /* 更长的节点宽度，3:1比例 */
-  height: 50px !important;  /* 保持较小的高度 */
+  width: 150px !important;
+  height: 50px !important;
 }
 
 .layout-horizontal-tree .rel-node > *,
@@ -16,19 +16,21 @@
 
 /* 水平树形布局节点悬停效果 */
 .layout-horizontal-tree .rel-node:hover {
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(0, 190, 201, 0.3);
+  transform: translateY(-1px);
+  box-shadow:
+    0 2px 5px rgba(15, 23, 42, 0.06),
+    0 12px 24px rgba(37, 99, 235, 0.12);
 }
 
 /* 水平树形布局连线样式 */
 .layout-horizontal-tree .rel-line {
   stroke-width: 2px;
-  stroke: rgba(0, 186, 189, 0.8);
+  stroke: #111827;
 }
 
 .layout-horizontal-tree .rel-line:hover {
-  stroke-width: 3px;
-  stroke: rgba(0, 186, 189, 1);
+  stroke-width: 2.5px;
+  stroke: #000000;
 }
 
 /* 水平树形布局文本样式 - 增大字体 */
@@ -36,13 +38,13 @@
 .layout-horizontal-tree .rel-node-text,
 .layout-horizontal-tree .rel-node .c-node-text,
 .layout-horizontal-tree .rel-node text {
-  font-size: 16px !important;  /* 增大字体到16px */
-  font-weight: 500 !important;  /* 增加字体粗细 */
+  font-size: 13px !important;
+  font-weight: 600 !important;
   line-height: 1.2 !important;
   text-align: center !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  padding: 6px 10px !important;  /* 增加内边距以适应更大的字体 */
-  color: #1f2937 !important;  /* 确保文字颜色清晰 */
+  padding: 4px 8px !important;
+  color: inherit !important;
 }

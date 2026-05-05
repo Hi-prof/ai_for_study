@@ -1,4 +1,180 @@
-/* Override for knowledge graph node selection style */
+/* Knowledge graph shared visual language */
+:root {
+  --kg-canvas-bg: #f8fafc;
+  --kg-node-bg: #ffffff;
+  --kg-node-border: #cbd5e1;
+  --kg-node-text: #1e293b;
+  --kg-root-bg: #0f766e;
+  --kg-root-border: #0f766e;
+  --kg-chapter-border: #0ea5e9;
+  --kg-active: #2563eb;
+  --kg-related: #60a5fa;
+  --kg-line: #111827;
+  --kg-line-hover: #000000;
+  --kg-line-muted: #111827;
+}
+
+.relation-graph,
+.graph-container,
+.tree-layout-viewport,
+.bidirectional-tree-viewport,
+.center-layout-viewport {
+  background: var(--kg-canvas-bg) !important;
+}
+
 .rel-node-checked {
   border-radius: 8px !important;
+}
+
+.rel-node.kg-graph-node,
+.rel-node-peel.kg-graph-node,
+.rel-node-peel-checked.kg-graph-node,
+.rel-nodediv.kg-graph-node {
+  box-sizing: border-box !important;
+  border-radius: 8px !important;
+  background: var(--kg-node-bg) !important;
+  border: 1px solid var(--kg-node-border) !important;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 18px rgba(15, 23, 42, 0.07) !important;
+  color: var(--kg-node-text) !important;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    opacity 0.2s ease,
+    transform 0.2s ease !important;
+}
+
+.rel-node.kg-graph-node > *,
+.rel-node-peel.kg-graph-node > *,
+.rel-node-peel-checked.kg-graph-node > *,
+.rel-nodediv.kg-graph-node > * {
+  border-radius: 8px !important;
+}
+
+.rel-node.kg-graph-node-root,
+.rel-node-peel.kg-graph-node-root,
+.rel-node-peel-checked.kg-graph-node-root,
+.rel-nodediv.kg-graph-node-root {
+  background: var(--kg-root-bg) !important;
+  border-color: var(--kg-root-border) !important;
+  color: #ffffff !important;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 12px 28px rgba(15, 118, 110, 0.22) !important;
+}
+
+.rel-node.kg-graph-node-root .kg-node-label,
+.rel-node-peel.kg-graph-node-root .kg-node-label,
+.rel-node.kg-graph-node-root .c-node-text,
+.rel-node-peel.kg-graph-node-root .c-node-text {
+  color: #ffffff !important;
+}
+
+.rel-node.kg-graph-node-chapter,
+.rel-node-peel.kg-graph-node-chapter,
+.rel-node-peel-checked.kg-graph-node-chapter,
+.rel-nodediv.kg-graph-node-chapter {
+  border-width: 2px !important;
+  border-left-width: 4px !important;
+}
+
+.rel-node.kg-graph-node:hover,
+.rel-node-peel.kg-graph-node:hover,
+.rel-nodediv.kg-graph-node:hover {
+  border-color: var(--kg-related) !important;
+  box-shadow:
+    0 2px 5px rgba(15, 23, 42, 0.06),
+    0 12px 24px rgba(37, 99, 235, 0.12) !important;
+  transform: translateY(-1px) !important;
+}
+
+.rel-node.kg-graph-node-selected,
+.rel-node-peel.kg-graph-node-selected,
+.rel-node-peel-checked.kg-graph-node-selected,
+.rel-nodediv.kg-graph-node-selected {
+  border-color: var(--kg-active) !important;
+  border-width: 2px !important;
+  box-shadow:
+    0 0 0 3px rgba(37, 99, 235, 0.14),
+    0 12px 28px rgba(37, 99, 235, 0.2) !important;
+  opacity: 1 !important;
+}
+
+.rel-node.kg-graph-node-related,
+.rel-node-peel.kg-graph-node-related,
+.rel-node-peel-checked.kg-graph-node-related,
+.rel-nodediv.kg-graph-node-related {
+  border-color: var(--kg-related) !important;
+  opacity: 1 !important;
+}
+
+.rel-node.kg-graph-node-muted,
+.rel-node-peel.kg-graph-node-muted,
+.rel-node-peel-checked.kg-graph-node-muted,
+.rel-nodediv.kg-graph-node-muted {
+  opacity: 0.34 !important;
+}
+
+.kg-node-label {
+  box-sizing: border-box;
+  display: -webkit-box;
+  width: 100%;
+  height: 100%;
+  padding: 4px 8px;
+  overflow: hidden;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.c-rg-line,
+.rel-line,
+.kg-graph-line {
+  stroke: var(--kg-line) !important;
+  stroke-width: 2px !important;
+  transition: stroke 0.2s ease, stroke-width 0.2s ease, opacity 0.2s ease !important;
+}
+
+.rel-link-peel:hover .c-rg-line,
+.rel-line:hover {
+  stroke: var(--kg-line-hover) !important;
+  stroke-width: 2.5px !important;
+}
+
+.kg-graph-line-active,
+.rel-line.kg-graph-line-active,
+.c-rg-line.kg-graph-line-active {
+  stroke: #000000 !important;
+  stroke-width: 3px !important;
+  opacity: 1 !important;
+}
+
+.kg-graph-line-muted,
+.rel-line.kg-graph-line-muted,
+.c-rg-line.kg-graph-line-muted {
+  stroke: var(--kg-line-muted) !important;
+  stroke-width: 1.4px !important;
+  opacity: 0.42 !important;
+}
+
+.rel-line-text,
+.c-rg-line-text {
+  fill: #64748b !important;
+  color: #64748b !important;
+  opacity: 0.48;
+}
+
+.kg-graph-line-active + .rel-line-text,
+.kg-graph-line-active .rel-line-text {
+  opacity: 1;
 }

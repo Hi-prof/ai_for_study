@@ -39,6 +39,8 @@
           frameborder="0"
           @load="onIframeLoad"
           @error="onIframeError"
+          allow="fullscreen"
+          allowfullscreen
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
         ></iframe>
         <div v-else class="graph-placeholder">

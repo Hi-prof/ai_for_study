@@ -37,6 +37,7 @@
       :courseId="courseId"
       :graphId="graphId"
       :currentCourse="currentCourse"
+      :readonly="isReadonly"
       @node-select="handleNodeSelect"
       @node-hover="handleNodeHover"
       @node-save="handleNodeSave"
@@ -82,6 +83,13 @@ const graphId = computed(() => route.query.graphId);
 
 // 判断是否作为嵌入视图（iframe）加载
 const isEmbedded = computed(() => 'embedded' in route.query);
+
+// 判断是否只读查看。学生端 iframe 会传 readonly=true，避免显示编辑、生成和上传入口。
+const isReadonly = computed(() => {
+  const readonlyQuery = route.query.readonly;
+  const readonlyValues = Array.isArray(readonlyQuery) ? readonlyQuery : [readonlyQuery];
+  return readonlyValues.some(value => value === 'true' || value === '1' || value === '' || value === null);
+});
 
 // 课程列表相关
 const courses = ref<Course[]>([]);

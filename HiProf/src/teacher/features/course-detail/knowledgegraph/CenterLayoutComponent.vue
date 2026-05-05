@@ -7,6 +7,7 @@
         :options="currentCenterOptions"
         :on-node-click="onNodeClick"
         :on-line-click="onLineClick"
+        :on-canvas-click="onCanvasClick"
         :on-fullscreen="handleRelationGraphFullscreen"
       >
         <template #graph-plug>
@@ -20,10 +21,17 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import RelationGraph, { RelationGraphComponent } from 'relation-graph-vue3';
 import { getKnowledgeGraphNodes, getNodeLines } from '@/api/node';
-import { VIRTUAL_ROOT_NODE_ID, isVirtualRootNode, resolveTopLevelNodeIds } from './graphRootUtils';
+import { VIRTUAL_ROOT_NODE_ID, isVirtualRootNode, resolveTopLevelNodeIds, resolveTreeAncestorNodeIds } from './graphRootUtils';
 import GraphFullscreenToggle from './GraphFullscreenToggle.vue';
 import { useGraphFullscreen } from './useGraphFullscreen';
 import '@/assets/styles/layouts/layout-manager.css';
+import {
+  applyGraphVisualLineStyle,
+  buildGraphRelationSets,
+  getLineInteractionState,
+  getNodeInteractionState,
+  searchGraphNodes
+} from '@/shared/features/graph/utils/graphVisualTheme.js';
 
 // 定义props
 interface Props {
@@ -39,6 +47,9 @@ interface Props {
     enableDrag?: boolean;
     maxNodes?: number;
     enableAnimation?: boolean;
+  };
+  interactionState?: {
+    selectedNodeId?: string | number | null;
   };
 }
 
@@ -58,8 +69,18 @@ const props = withDefaults(defineProps<Props>(), {
 
 const CENTER_ROOT_NODE_SIZE = 84;
 const CENTER_NORMAL_NODE_SIZE = 52;
-const CENTER_LINE_COLOR = '#d5dee8';
-const CENTER_LINE_TEXT_COLOR = '#94a3b8';
+const CENTER_LINE_COLOR = '#111827';
+const CENTER_LINE_TEXT_COLOR = '#374151';
+const CENTER_LINE_WIDTH = 3;
+const CENTER_LINE_ACTIVE_WIDTH = 4.25;
+const CENTER_LINE_MUTED_WIDTH = 2;
+const CENTER_LINE_MARKER = {
+  markerWidth: 28,
+  markerHeight: 28,
+  refX: 24,
+  refY: 14,
+  data: 'M3,3 L25,14 L3,25 L9,14 Z'
+};
 const collapsedCenterNodeIds = ref<Set<string>>(new Set());
 const rawCenterNodes = ref<any[]>([]);
 const rawCenterLines = ref<Array<Record<string, unknown>>>([]);
@@ -126,13 +147,22 @@ const buildCenterNodeHtml = (text: string, isRoot: boolean, seed: string, hasChi
   </div>`;
 };
 
+const getCenterNodeStyleClass = (isRoot: boolean, hasChildren: boolean, isCollapsed: boolean, state = 'default') => [
+  'kg-center-node',
+  isRoot ? 'kg-center-root-node' : 'kg-center-normal-node',
+  hasChildren ? 'kg-center-has-children' : '',
+  isCollapsed ? 'kg-center-collapsed' : '',
+  state && state !== 'default' ? `kg-graph-node-${state}` : ''
+].filter(Boolean).join(' ');
+
 const buildCenterGraphNode = ({
   id,
   text,
   data,
   isRoot = false,
   hasChildren = false,
-  isCollapsed = false
+  isCollapsed = false,
+  state = 'default'
 }: {
   id: string;
   text: string;
@@ -140,6 +170,7 @@ const buildCenterGraphNode = ({
   isRoot?: boolean;
   hasChildren?: boolean;
   isCollapsed?: boolean;
+  state?: string;
 }) => {
   const nodeSize = isRoot ? CENTER_ROOT_NODE_SIZE : CENTER_NORMAL_NODE_SIZE;
 
@@ -154,12 +185,7 @@ const buildCenterGraphNode = ({
     fontColor: 'transparent',
     color: 'transparent',
     expanded: !isCollapsed,
-    styleClass: [
-      'kg-center-node',
-      isRoot ? 'kg-center-root-node' : 'kg-center-normal-node',
-      hasChildren ? 'kg-center-has-children' : '',
-      isCollapsed ? 'kg-center-collapsed' : ''
-    ].filter(Boolean).join(' '),
+    styleClass: getCenterNodeStyleClass(isRoot, hasChildren, isCollapsed, state),
     innerHTML: buildCenterNodeHtml(text, isRoot, `${id}-${text}`, hasChildren, isCollapsed),
     data: {
       ...data,
@@ -170,13 +196,25 @@ const buildCenterGraphNode = ({
   };
 };
 
-const buildCenterLine = (line: Record<string, unknown>) => ({
-  ...line,
-  color: CENTER_LINE_COLOR,
-  fontColor: CENTER_LINE_TEXT_COLOR,
-  lineWidth: 1,
-  useTextPath: true,
-  styleClass: 'kg-center-line'
+const getCenterLineWidth = (state = 'default') => {
+  if (state === 'active') {
+    return CENTER_LINE_ACTIVE_WIDTH;
+  }
+
+  if (state === 'muted') {
+    return CENTER_LINE_MUTED_WIDTH;
+  }
+
+  return CENTER_LINE_WIDTH;
+};
+
+const buildCenterLine = (line: Record<string, unknown>, state = 'default') => ({
+  ...applyGraphVisualLineStyle(line, state),
+  color: state === 'active' ? '#000000' : CENTER_LINE_COLOR,
+  fontColor: state === 'active' ? '#000000' : CENTER_LINE_TEXT_COLOR,
+  lineWidth: getCenterLineWidth(state),
+  useTextPath: false,
+  styleClass: ['kg-center-line', state && state !== 'default' ? `kg-graph-line-${state}` : ''].filter(Boolean).join(' ')
 });
 
 const getCenterNodeText = (node: Record<string, unknown>) => {
@@ -274,22 +312,25 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedLines
   const visibleNodeIds = isVirtualRootVisible && isVirtualRootCollapsed
     ? new Set<string>()
     : getVisibleCenterNodeIds(stableRootIds, hierarchy.childrenByParentId);
+  const relationSets = buildGraphRelationSets(props.interactionState?.selectedNodeId, processedLines);
   const processedNodes = rawNodes
     .filter(node => visibleNodeIds.has(normalizeCenterNodeId(node.id)))
     .map(node => {
       const id = normalizeCenterNodeId(node.id);
+      const state = getNodeInteractionState(id, relationSets);
       return buildCenterGraphNode({
         id,
         text: getCenterNodeText(node),
         data: node,
         isRoot: !isVirtualRootVisible && stableRootIds.length === 1 && id === stableRootIds[0],
         hasChildren: Boolean(hierarchy.childCountByParentId.get(id)),
-        isCollapsed: collapsedCenterNodeIds.value.has(id)
+        isCollapsed: collapsedCenterNodeIds.value.has(id),
+        state
       });
     });
   const visibleLines = processedLines.filter((line: any) => {
     return visibleNodeIds.has(normalizeCenterNodeId(line.from)) && visibleNodeIds.has(normalizeCenterNodeId(line.to));
-  });
+  }).map((line: any) => buildCenterLine(line, getLineInteractionState(line, relationSets)));
 
   if (stableRootIds.length <= 1) {
     return {
@@ -309,7 +350,8 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedLines
     },
     isRoot: true,
     hasChildren: stableRootIds.length > 0,
-    isCollapsed: isVirtualRootCollapsed
+    isCollapsed: isVirtualRootCollapsed,
+    state: getNodeInteractionState(VIRTUAL_ROOT_NODE_ID, relationSets)
   });
 
   const virtualLines = buildVirtualRootLines(stableRootIds, visibleNodeIds, isVirtualRootCollapsed);
@@ -322,7 +364,7 @@ const buildGraphData = (rawNodes: Array<Record<string, unknown>>, processedLines
 };
 
 // 定义emits
-const emit = defineEmits(['node-click', 'line-click']);
+const emit = defineEmits(['node-click', 'line-click', 'canvas-click']);
 
 // 响应式数据
 const centerGraphRef = ref<RelationGraphComponent | null>(null);
@@ -338,7 +380,7 @@ const {
 // 动态CSS类
 const layoutCssClass = computed(() => 'layout-center');
 
-// 中心布局配置
+// 关系探索使用力导图，节点保持圆形图标按钮样式。
 const centerLayoutOptions: any = {
   'backgroundImageNoRepeat': true,
   'moveToCenterWhenRefresh': false,
@@ -346,35 +388,34 @@ const centerLayoutOptions: any = {
   'defaultNodeBorderWidth': 0,
   'defaultNodeShape': 0 as any,
   'layout': {
-    'label': '中心',
-    'layoutName': 'center',
+    'label': '关系探索',
+    'layoutName': 'force',
     'centerOffset_x': 0,
     'centerOffset_y': 0,
-    'distance_coefficient': 1.05,
-    'maxLayoutTimes': 300,
+    'fixedRootNode': true,
+    'byNode': true,
+    'byLine': true,
+    'fastStart': false,
+    'maxLayoutTimes': 420,
     'force_node_repulsion': 1.25,
-    'force_line_elastic': 0.85
+    'force_line_elastic': 0.62
   },
   'defaultLineMarker': {
-    'markerWidth': 10,
-    'markerHeight': 10,
-    'refX': 5,
-    'refY': 5,
+    ...CENTER_LINE_MARKER,
     'color': CENTER_LINE_COLOR,
-    'data': 'M2,2 L8,5 L2,8 L4.5,5 L2,2'
   },
   'defaultNodeWidth': CENTER_NORMAL_NODE_SIZE,
   'defaultNodeHeight': CENTER_NORMAL_NODE_SIZE,
   'defaultLineShape': 1 as any,
   'defaultJunctionPoint': 'border',
   'defaultLineColor': CENTER_LINE_COLOR,
-  'defaultLineWidth': 1,
+  'defaultLineWidth': CENTER_LINE_WIDTH,
   'defaultLineFontColor': CENTER_LINE_TEXT_COLOR,
   'defaultNodeColor': 'transparent',
   'defaultNodeFontColor': 'transparent',
   'defaultExpandHolderPosition': 'hide',
-  'defaultShowLineLabel': true,
-  'lineUseTextPath': true,
+  'defaultShowLineLabel': false,
+  'lineUseTextPath': false,
   'lineTextMaxLength': 16,
   'disableZoom': false,
   'allowShowMiniToolBar': true,
@@ -384,27 +425,30 @@ const centerLayoutOptions: any = {
 
 // 动态调整布局参数的函数
 const getDynamicLayoutOptions = (nodeCount: number) => {
-  let distanceCoefficient = 1.05;
   let forceNodeRepulsion = 1.25;
-  let forceLineElastic = 0.85;
+  let forceLineElastic = 0.62;
+  let maxLayoutTimes = 420;
 
   if (nodeCount <= 10) {
-    distanceCoefficient = 1.2;
-    forceNodeRepulsion = 1.35;
+    forceNodeRepulsion = 1.12;
+    forceLineElastic = 0.7;
+    maxLayoutTimes = 320;
   } else if (nodeCount <= 30) {
-    distanceCoefficient = 1.05;
+    forceNodeRepulsion = 1.28;
+    forceLineElastic = 0.62;
+    maxLayoutTimes = 420;
   } else {
-    distanceCoefficient = 0.9;
-    forceNodeRepulsion = 1.05;
-    forceLineElastic = 0.95;
+    forceNodeRepulsion = 1.45;
+    forceLineElastic = 0.56;
+    maxLayoutTimes = 520;
   }
 
   return {
     nodeWidth: CENTER_NORMAL_NODE_SIZE,
     nodeHeight: CENTER_NORMAL_NODE_SIZE,
-    distanceCoefficient,
     forceNodeRepulsion,
-    forceLineElastic
+    forceLineElastic,
+    maxLayoutTimes
   };
 };
 
@@ -426,7 +470,8 @@ const currentCenterOptions = computed(() => {
     defaultNodeWidth: dynamicParams.nodeWidth,
     defaultNodeHeight: dynamicParams.nodeHeight,
     defaultLineShape: 1 as any,
-    defaultShowLineLabel: props.settings.showLabels !== false,
+    defaultShowLineLabel: false,
+    lineUseTextPath: false,
     disableZoom: !enableZoom,
     allowShowFullscreenMenu: false,
     allowShowMiniToolBar: enableZoom,
@@ -436,9 +481,9 @@ const currentCenterOptions = computed(() => {
   };
 
   if (options.layout) {
-    (options.layout as any).distance_coefficient = dynamicParams.distanceCoefficient;
     (options.layout as any).force_node_repulsion = dynamicParams.forceNodeRepulsion;
     (options.layout as any).force_line_elastic = dynamicParams.forceLineElastic;
+    (options.layout as any).maxLayoutTimes = dynamicParams.maxLayoutTimes;
   }
 
   return options;
@@ -448,6 +493,7 @@ const currentCenterOptions = computed(() => {
 const onNodeClick = (nodeObject: any, event: any) => {
   const target = event?.target as HTMLElement | undefined;
   if (target?.closest?.('.kg-center-toggle')) {
+    event?.preventDefault?.();
     event?.stopPropagation?.();
     void toggleCenterNode(nodeObject).catch((error) => {
       console.error('CenterLayoutComponent: 切换节点展开状态失败:', error);
@@ -468,6 +514,10 @@ const onLineClick = (lineObject: any, lineElement: any) => {
   emit('line-click', lineObject, lineElement);
 };
 
+const onCanvasClick = (event: any) => {
+  emit('canvas-click', event);
+};
+
 const toggleCenterNode = async (nodeObject: any) => {
   const nodeId = normalizeCenterNodeId(nodeObject?.id);
   if (!nodeId || nodeObject?.data?.hasCenterChildren !== true) {
@@ -482,10 +532,15 @@ const toggleCenterNode = async (nodeObject: any) => {
   }
   collapsedCenterNodeIds.value = nextCollapsedNodeIds;
 
-  await renderCenterGraph(rawCenterNodes.value, rawCenterLines.value);
+  await renderCenterGraph(rawCenterNodes.value, rawCenterLines.value, { resetView: false });
 };
 
-const renderCenterGraph = async (nodes: any[], processedLines: Array<Record<string, unknown>>) => {
+const renderCenterGraph = async (
+  nodes: any[],
+  processedLines: Array<Record<string, unknown>>,
+  options: { resetView?: boolean } = {}
+) => {
+  const { resetView = true } = options;
   const graphData = buildGraphData(nodes, processedLines);
 
   console.log(`CenterLayoutComponent: 图谱数据构建完成`, {
@@ -504,21 +559,96 @@ const renderCenterGraph = async (nodes: any[], processedLines: Array<Record<stri
   };
 
   if (updatedOptions.layout) {
-    updatedOptions.layout.distance_coefficient = dynamicParams.distanceCoefficient;
     updatedOptions.layout.force_node_repulsion = dynamicParams.forceNodeRepulsion;
     updatedOptions.layout.force_line_elastic = dynamicParams.forceLineElastic;
+    updatedOptions.layout.maxLayoutTimes = dynamicParams.maxLayoutTimes;
   }
 
   const graphInstance = getCenterGraphInstance();
   if (graphInstance) {
     await graphInstance.setOptions(updatedOptions);
     await graphInstance.setJsonData(graphData);
-    await graphInstance.moveToCenter();
-    await graphInstance.zoomToFit();
+    if (resetView) {
+      await graphInstance.moveToCenter();
+      await graphInstance.zoomToFit();
+    }
     console.log(`CenterLayoutComponent: 图谱渲染完成 (节点数: ${graphData.nodes.length})`);
   } else {
     console.error('CenterLayoutComponent: 图谱实例未找到');
   }
+};
+
+const refreshCenterVisualState = async () => {
+  if (!rawCenterNodes.value.length) {
+    return;
+  }
+
+  await renderCenterGraph(rawCenterNodes.value, rawCenterLines.value, { resetView: false });
+};
+
+const searchNodes = (keyword: string) => {
+  return searchGraphNodes(keyword, rawCenterNodes.value.map(node => ({
+    id: node.id,
+    text: getCenterNodeText(node),
+    name: node.name,
+    data: {
+      content: node.content || '',
+      fullText: getCenterNodeText(node),
+      originalData: node
+    }
+  })));
+};
+
+const revealCenterNodePath = async (nodeId: string) => {
+  const ancestorNodeIds = resolveTreeAncestorNodeIds(nodeId, rawCenterNodes.value, rawCenterLines.value);
+  const nextCollapsedNodeIds = new Set(collapsedCenterNodeIds.value);
+  let hasChanged = false;
+
+  if (getStableCenterRootIds(rawCenterNodes.value).length > 1 && nextCollapsedNodeIds.delete(VIRTUAL_ROOT_NODE_ID)) {
+    hasChanged = true;
+  }
+
+  ancestorNodeIds.forEach(ancestorNodeId => {
+    if (nextCollapsedNodeIds.delete(ancestorNodeId)) {
+      hasChanged = true;
+    }
+  });
+
+  if (!hasChanged) {
+    return;
+  }
+
+  collapsedCenterNodeIds.value = nextCollapsedNodeIds;
+  await renderCenterGraph(rawCenterNodes.value, rawCenterLines.value, { resetView: false });
+  await nextTick();
+};
+
+const focusNodeById = async (nodeId: string) => {
+  const normalizedNodeId = normalizeCenterNodeId(nodeId);
+  if (!normalizedNodeId) {
+    return;
+  }
+
+  await revealCenterNodePath(normalizedNodeId);
+
+  const graphInstance = getCenterGraphInstance();
+  if (!graphInstance) {
+    return;
+  }
+
+  if (typeof (graphInstance as any).focusNodeById === 'function') {
+    await (graphInstance as any).focusNodeById(normalizedNodeId);
+  }
+};
+
+const fitView = async () => {
+  const graphInstance = getCenterGraphInstance();
+  if (!graphInstance) {
+    return;
+  }
+
+  await graphInstance.moveToCenter();
+  await graphInstance.zoomToFit();
 };
 
 // 加载图谱数据
@@ -581,6 +711,10 @@ watch(() => [props.courseId, props.graphId, props.courseName], () => {
   loadGraphData();
 }, { immediate: false });
 
+watch(() => props.interactionState?.selectedNodeId, () => {
+  void refreshCenterVisualState();
+}, { immediate: false });
+
 // 组件挂载后加载数据
 onMounted(async () => {
   document.addEventListener('fullscreenchange', syncNativeFullscreenState);
@@ -598,7 +732,10 @@ onBeforeUnmount(() => {
 // 暴露方法给父组件
 defineExpose({
   refresh: loadGraphData,
-  getGraphInstance: getCenterGraphInstance
+  getGraphInstance: getCenterGraphInstance,
+  searchNodes,
+  focusNodeById,
+  fitView
 });
 </script>
 

@@ -1,19 +1,22 @@
 <template>
-  <div class="node-detail-panel">
+  <div class="node-detail-panel" :class="{ readonly: props.readonly }">
     <div class="panel-header">
       <div class="title-input-shell">
-        <input type="text" v-model="title" class="title-editor" placeholder="知识点标题" />
+        <textarea
+          ref="titleEditorRef"
+          v-model="title"
+          class="title-editor"
+          :class="{
+            readonly: props.readonly,
+            'has-focus-badge': isStructuredContent && structuredNode?.isFocus
+          }"
+          :readonly="props.readonly"
+          placeholder="知识点标题"
+          rows="1"
+        ></textarea>
         <span v-if="isStructuredContent && structuredNode?.isFocus" class="focus-badge title-focus-badge">重点</span>
       </div>
       <div class="panel-actions">
-        <button
-          v-if="isStructuredContent"
-          class="generate-deep-card-button header-ai-button"
-          @click="optimizeKnowledgeCard"
-          :disabled="isOptimizingCard"
-        >
-          {{ isOptimizingCard ? '优化中...' : hasOptimizedCard ? '重新AI优化' : 'AI优化卡片' }}
-        </button>
         <button class="close-button" @click="close">×</button>
       </div>
     </div>
@@ -23,19 +26,28 @@
           class="knowledge-card-frame"
           :class="{ 'is-editing': isKnowledgeCardEditing }"
         >
-          <div class="knowledge-card-header">
-            <span class="save-status compact" :class="saveStatusClass">{{ saveStatusText }}</span>
+          <div v-if="!props.readonly" class="knowledge-card-header">
             <button
-              class="knowledge-card-edit-button"
-              type="button"
-              @click="toggleKnowledgeCardEditing"
+              class="generate-deep-card-button knowledge-card-ai-button"
+              @click="optimizeKnowledgeCard"
+              :disabled="isOptimizingCard"
             >
-              {{ isKnowledgeCardEditing ? '完成' : '编辑' }}
+              {{ isOptimizingCard ? '优化中...' : hasOptimizedCard ? '重新AI优化' : 'AI优化卡片' }}
             </button>
+            <div class="knowledge-card-actions">
+              <span class="save-status compact" :class="saveStatusClass">{{ saveStatusText }}</span>
+              <button
+                class="knowledge-card-edit-button"
+                type="button"
+                @click="toggleKnowledgeCardEditing"
+              >
+                {{ isKnowledgeCardEditing ? '完成' : '编辑' }}
+              </button>
+            </div>
           </div>
           <div class="knowledge-card-body">
             <textarea
-              v-if="isKnowledgeCardEditing"
+              v-if="!props.readonly && isKnowledgeCardEditing"
               id="knowledge-card-markdown"
               class="knowledge-card-editor"
               :value="knowledgeCardMarkdown"
@@ -53,7 +65,7 @@
       </div>
 
       <div v-else class="node-content">
-        <div class="content-header plain-content-toolbar">
+        <div v-if="!props.readonly" class="content-header plain-content-toolbar">
           <div class="header-right">
             <span class="save-status compact" :class="saveStatusClass">{{ saveStatusText }}</span>
             <span class="char-count" :class="{ 'over-limit': contentLength > 400 }">
@@ -64,11 +76,15 @@
             </button>
           </div>
         </div>
-        <textarea 
-          v-model="content" 
+        <textarea
+          v-if="!props.readonly"
+          v-model="content"
           class="content-editor"
           placeholder="请输入知识点内容..."
         ></textarea>
+        <div v-else class="content-readonly">
+          {{ content || '暂无内容' }}
+        </div>
         <div v-if="isSearching" class="search-loading">
           <div class="loading-spinner search-spinner"></div>
           <span>正在搜索相关内容...</span>
@@ -76,7 +92,7 @@
       </div>
 
       <!-- 文件上传区域 -->
-      <div class="node-files" :class="{ collapsed: !isFilesSectionExpanded }">
+      <div v-if="!props.readonly || nodeFiles.length > 0" class="node-files" :class="{ collapsed: !isFilesSectionExpanded }">
         <div class="content-header files-header">
           <div class="files-title-wrap">
             <h4>知识资料</h4>
@@ -84,6 +100,7 @@
           </div>
           <div class="header-right">
             <button
+              v-if="!props.readonly"
               class="upload-button"
               @click="triggerFileInput"
               :disabled="isUploading"
@@ -102,6 +119,7 @@
 
         <!-- 隐藏的文件输入 -->
         <input
+          v-if="!props.readonly"
           ref="fileInput"
           type="file"
           @change="handleFileSelect"
@@ -155,7 +173,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, watch, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { useChapterFileUpload } from '@/shared/composables/useChapterFileUpload';
 import { generateKnowledgeAgentDeepCard } from '@/api/graph';
 
@@ -192,7 +210,8 @@ const props = defineProps<{
   node: Node,
   relatedNodes: RelatedNode[],
   courseId?: string | number,
-  courseName?: string
+  courseName?: string,
+  readonly?: boolean
 }>();
 
 // Define emits
@@ -212,6 +231,7 @@ const {
 const title = ref('');
 const content = ref('');
 const rawContent = ref('');
+const titleEditorRef = ref<HTMLTextAreaElement | null>(null);
 const isSearching = ref(false);
 const imageResult = ref<string | null>(null);
 const resources = ref<any[]>([]);
@@ -232,6 +252,20 @@ let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 let activeSavePromise: Promise<boolean> | null = null;
 
 const AUTO_SAVE_DELAY = 800;
+
+const resizeTitleEditor = () => {
+  const editor = titleEditorRef.value;
+  if (!editor) {
+    return;
+  }
+
+  editor.style.height = 'auto';
+  editor.style.height = `${editor.scrollHeight}px`;
+};
+
+const queueTitleEditorResize = () => {
+  void nextTick(resizeTitleEditor);
+};
 
 // 计算属性 - 当前节点的文件列表
 const nodeFiles = computed(() => {
@@ -420,6 +454,10 @@ const emitSaveRequest = (saveData: { id: string | number; text: string; content:
 };
 
 const runSave = async (options: SaveOptions = {}) => {
+  if (props.readonly) {
+    return false;
+  }
+
   const snapshot = currentSnapshot.value;
   if (snapshot === lastSavedSnapshot.value) {
     saveState.value = 'saved';
@@ -468,6 +506,10 @@ const flushPendingSave = async (options: SaveOptions = {}) => {
 };
 
 const toggleKnowledgeCardEditing = async () => {
+  if (props.readonly) {
+    return;
+  }
+
   if (!isKnowledgeCardEditing.value) {
     isKnowledgeCardEditing.value = true;
     return;
@@ -533,8 +575,10 @@ watch(() => content.value, (newContent) => {
   contentLength.value = newContent.length;
 }, { immediate: true });
 
+watch(title, queueTitleEditorResize, { immediate: true });
+
 watch(currentSnapshot, (newSnapshot, oldSnapshot) => {
-  if (isHydratingNode.value || !props.node?.id || newSnapshot === oldSnapshot) {
+  if (props.readonly || isHydratingNode.value || !props.node?.id || newSnapshot === oldSnapshot) {
     return;
   }
 
@@ -585,6 +629,10 @@ const buildOptimizationSourceText = () => {
 };
 
 const optimizeKnowledgeCard = async () => {
+  if (props.readonly) {
+    return;
+  }
+
   if (!structuredNode.value?.lightweightCard) {
     alert('当前节点没有基础知识卡片，暂时无法进行 AI 优化');
     return;
@@ -624,6 +672,11 @@ const optimizeKnowledgeCard = async () => {
 };
 
 const close = async () => {
+  if (props.readonly) {
+    emit('close', { refreshGraph: false });
+    return;
+  }
+
   try {
     await flushPendingSave({ refreshGraph: false, showError: false });
     emit('close', { refreshGraph: hasPersistedChanges.value });
@@ -640,6 +693,10 @@ const toggleFilesSection = () => {
 // 注释：文件重命名逻辑已移至 useChapterFileUpload.js 中统一处理
 
 const searchContent = async () => {
+  if (props.readonly) {
+    return;
+  }
+
   if (!title.value.trim()) {
     alert('请先输入知识点标题');
     return;
@@ -749,6 +806,10 @@ const searchContent = async () => {
 
 // 触发文件选择
 const triggerFileInput = () => {
+  if (props.readonly) {
+    return;
+  }
+
   isFilesSectionExpanded.value = true;
   if (fileInput.value) {
     fileInput.value.click();
@@ -757,6 +818,10 @@ const triggerFileInput = () => {
 
 // 处理文件选择
 const handleFileSelect = async (event: Event) => {
+  if (props.readonly) {
+    return;
+  }
+
   const target = event.target as HTMLInputElement;
   const files = target.files;
 
@@ -823,6 +888,8 @@ const formatFileSize = (bytes: number): string => {
 
 // 组件挂载时加载文件
 onMounted(() => {
+  queueTitleEditorResize();
+
   if (props.courseId && props.node?.id) {
     loadCourseFiles(props.courseId);
   }
@@ -867,6 +934,15 @@ onBeforeUnmount(() => {
   color: #dc2626;
 }
 
+.panel-header {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.panel-actions {
+  padding-top: 8px;
+}
+
 .title-input-shell {
   position: relative;
   flex: 1;
@@ -875,8 +951,39 @@ onBeforeUnmount(() => {
 
 .title-editor {
   width: 100%;
+  min-height: 46px;
+  box-sizing: border-box;
   margin-right: 0 !important;
+  padding: 12px 16px !important;
+  border: 1px solid rgba(203, 213, 225, 0.4);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #334155;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.45;
+  font-family: inherit;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.title-editor.has-focus-badge {
   padding-right: 84px !important;
+}
+
+.title-editor:focus {
+  border-color: #3b82f6;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15), 0 4px 12px rgba(59, 130, 246, 0.1);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.title-editor.readonly {
+  cursor: default;
+  background: #f8fafc;
 }
 
 .plain-content-toolbar {
@@ -896,9 +1003,8 @@ onBeforeUnmount(() => {
 
 .title-focus-badge {
   position: absolute;
-  top: 50%;
+  top: 14px;
   right: 14px;
-  transform: translateY(-50%);
   padding: 3px 8px;
   background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
   border: 1px solid rgba(147, 197, 253, 0.9);
@@ -925,7 +1031,8 @@ onBeforeUnmount(() => {
   cursor: not-allowed;
 }
 
-.header-ai-button {
+.knowledge-card-ai-button {
+  flex-shrink: 0;
   white-space: nowrap;
 }
 
@@ -939,12 +1046,21 @@ onBeforeUnmount(() => {
 
 .knowledge-card-header {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
   padding: 14px 16px 10px;
   border-bottom: 1px solid #e6edf6;
   background: #fbfdff;
+}
+
+.knowledge-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-left: auto;
 }
 
 .knowledge-card-edit-button {
@@ -1016,6 +1132,19 @@ onBeforeUnmount(() => {
   border-color: #93c5fd;
   background: #ffffff;
   box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.2);
+}
+
+.content-readonly {
+  min-height: 220px;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #1e293b;
+  font-size: 14px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .node-files {
