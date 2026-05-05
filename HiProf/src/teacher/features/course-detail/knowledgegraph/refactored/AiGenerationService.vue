@@ -8,8 +8,7 @@
 import { ref, defineEmits, defineExpose } from 'vue';
 import {
   createKnowledgeGraphGenerationTask,
-  getKnowledgeGraphGenerationTask,
-  persistKnowledgeGraphGenerationTask
+  getKnowledgeGraphGenerationTask
 } from '@/api/graph';
 
 const TASK_POLL_INTERVAL_MS = 1000;
@@ -103,47 +102,33 @@ const generateKnowledgeGraph = async (payload) => {
     );
     const completedPreviewText = buildPreviewText(completedTask.result);
 
+    currentGraphId.value = '';
+    latestTaskResult.value = completedTask.result;
+    latestTaskDetail.value = completedTask;
+    generatedResult.value = completedPreviewText;
+    originalResult.value = completedPreviewText;
+    isResultModified.value = false;
+
     emit('generation-progress', {
-      accumulated: '图谱内容已生成，正在保存到课程图谱...',
-      progress: { percent: 95 },
+      accumulated: '知识图谱内容已生成，等待确认替换当前图谱',
+      progress: { percent: 100 },
       taskId: currentTaskId.value,
       taskResult: completedTask.result,
       taskDetail: completedTask,
       result: completedPreviewText,
       original: completedPreviewText,
-      partial: true
-    });
-
-    const persistResponse = await persistKnowledgeGraphGenerationTask(
-      currentTaskId.value,
-      requestAbortController.signal
-    );
-    const data = unwrapApiData(persistResponse);
-    const taskResult = data.result || data.task?.result || null;
-    const previewText = buildPreviewText(taskResult);
-
-    currentTaskId.value = data.taskId || data.task?.taskId || currentTaskId.value;
-    currentGraphId.value = data.graphId || '';
-    latestTaskResult.value = taskResult;
-    latestTaskDetail.value = data.task || null;
-    generatedResult.value = previewText;
-    originalResult.value = previewText;
-    isResultModified.value = false;
-
-    emit('generation-progress', {
-      accumulated: '后端已完成 AI 生成、结果解析和知识图谱更新',
-      progress: { percent: 100 }
+      partial: false
     });
 
     emit('generation-success', {
-      result: previewText,
-      original: previewText,
+      result: completedPreviewText,
+      original: completedPreviewText,
       taskId: currentTaskId.value,
-      graphId: currentGraphId.value,
-      taskResult,
-      taskDetail: latestTaskDetail.value,
+      graphId: '',
+      taskResult: completedTask.result,
+      taskDetail: completedTask,
       partial: false,
-      autoPersisted: true
+      autoPersisted: false
     });
 
   } catch (error) {
@@ -271,7 +256,7 @@ const resolveTaskProgressText = (task) => {
   const nodeCount = Array.isArray(task?.result?.nodes) ? task.result.nodes.length : 0;
 
   if (task?.status === 'completed') {
-    return '知识图谱内容已生成，正在保存到课程图谱...';
+    return '知识图谱内容已生成，等待确认替换当前图谱';
   }
   if (task?.stage === 'generating_skeleton' && nodeCount > 0) {
     const topLevelCount = countReturnedTopLevelNodes(task.result.nodes);

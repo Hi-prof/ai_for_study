@@ -351,6 +351,140 @@
   to { transform: rotate(360deg); }
 }
 
+.kg-preview-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f5f7fb;
+}
+
+.kg-preview-shell {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 18px;
+}
+
+.kg-preview-toolbar,
+.kg-preview-node-panel {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.kg-preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+}
+
+.kg-preview-status {
+  min-width: 0;
+  flex: 1;
+}
+
+.kg-preview-stage {
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.kg-preview-meta {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.kg-preview-error {
+  margin-top: 6px;
+  color: #b91c1c;
+  font-size: 0.86rem;
+}
+
+.kg-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.kg-preview-graph-panel {
+  position: relative;
+  min-height: 520px;
+  overflow: hidden;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.kg-preview-graph {
+  width: 100%;
+  height: 100%;
+}
+
+.kg-preview-graph-panel .relation-graph {
+  height: 100%;
+}
+
+.kg-preview-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #ffffff;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.kg-preview-empty-title {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.kg-preview-empty-text {
+  max-width: 420px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.kg-preview-node-panel {
+  padding: 14px 16px;
+}
+
+.kg-preview-node-title {
+  margin-bottom: 6px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.kg-preview-node-content {
+  color: #475569;
+  line-height: 1.6;
+}
+
+.kg-preview-page .kg-node-label {
+  box-sizing: border-box;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  height: 100%;
+  padding: 4px 8px;
+  line-height: 20px;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
 @media (max-width: 720px) {
   .page-header {
     padding: 0.875rem;
@@ -375,5 +509,22 @@
 
   .btn {
     flex: 1 1 auto;
+  }
+
+  .kg-preview-shell {
+    padding: 12px;
+  }
+
+  .kg-preview-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .kg-preview-actions {
+    flex-wrap: wrap;
+  }
+
+  .kg-preview-graph-panel {
+    min-height: 460px;
   }
 }

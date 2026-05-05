@@ -3,6 +3,7 @@ package com.hiprof.framework.web.service;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +33,7 @@ import io.jsonwebtoken.SignatureAlgorithm;
 public class TokenService
 {
     private static final Logger log = LoggerFactory.getLogger(TokenService.class);
+    private static final String USER_TOKEN_COOKIE = "User-Token";
 
     // 令牌自定义标识
     @Value("${token.header}")
@@ -218,11 +220,32 @@ public class TokenService
     private String getToken(HttpServletRequest request)
     {
         String token = request.getHeader(header);
+        if (StringUtils.isEmpty(token))
+        {
+            token = getCookieToken(request);
+        }
         if (StringUtils.isNotEmpty(token) && token.startsWith(Constants.TOKEN_PREFIX))
         {
             token = token.replace(Constants.TOKEN_PREFIX, "");
         }
         return token;
+    }
+
+    private String getCookieToken(HttpServletRequest request)
+    {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null)
+        {
+            return "";
+        }
+        for (Cookie cookie : cookies)
+        {
+            if (USER_TOKEN_COOKIE.equals(cookie.getName()))
+            {
+                return cookie.getValue();
+            }
+        }
+        return "";
     }
 
     private String getTokenKey(String uuid)

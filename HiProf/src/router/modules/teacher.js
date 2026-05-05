@@ -55,6 +55,13 @@ export const teacherRoutes = [
     props: true
   },
   {
+    path: '/teacher/course/:courseId/ai-knowledge-graph/preview/:taskId',
+    name: 'knowledge-graph-generation-preview',
+    component: () => import('@/teacher/pages/KnowledgeGraphGenerationPreview.vue'),
+    meta: { title: '知识图谱生成预览', requiresAuth: true, role: 'teacher' },
+    props: true
+  },
+  {
     path: '/teacher/course/:courseId/ai-lesson-plan-generator',
     name: 'ai-lesson-plan-generator',
     component: () => import('@/teacher/pages/AiLessonPlanGenerator.vue'),
