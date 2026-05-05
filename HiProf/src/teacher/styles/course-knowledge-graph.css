@@ -6,6 +6,7 @@
   border-radius: 0.5rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+  min-height: 0;
 }
 
 /* 头部区域样式 */
@@ -41,6 +42,7 @@
   display: flex;
   gap: 0.75rem;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 /* 布局控制样式 */
@@ -122,8 +124,9 @@
 /* 图谱主容器样式 */
 .graph-main-container {
   display: flex;
-  height: calc(100vh - 190px); /* 重新精确计算：页面头部70px + 组件头部120px */
-  min-height: 500px; /* 确保最小可用高度 */
+  flex: 1 1 auto;
+  height: calc(100vh - 154px);
+  min-height: 560px;
   gap: 0;
   border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 0.5rem;

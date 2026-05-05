@@ -263,6 +263,133 @@ const getDynamicLayoutOptions = (nodeCount: number, maxDepth: number) => {
 const BIDIRECTIONAL_DEPTH_GAP = 320;
 const BIDIRECTIONAL_ROW_GAP = 120;
 
+const getBidirectionalNodeId = (node: any) => String(node?.id || '');
+
+const appendBranchNode = (childrenByParent: Map<string, any[]>, parentId: string, child: any) => {
+  if (!parentId || !child) {
+    return;
+  }
+
+  if (!childrenByParent.has(parentId)) {
+    childrenByParent.set(parentId, []);
+  }
+  childrenByParent.get(parentId)!.push(child);
+};
+
+const buildDirectionalBranchMaps = (graphData: any, nodeById: Map<string, any>) => {
+  const outgoingChildrenByParent = new Map<string, any[]>();
+  const incomingChildrenByParent = new Map<string, any[]>();
+
+  (graphData.links || []).forEach((link: any) => {
+    const fromId = String(link.from || '');
+    const toId = String(link.to || '');
+    if (!fromId || !toId || fromId === toId) {
+      return;
+    }
+
+    const fromNode = nodeById.get(fromId);
+    const toNode = nodeById.get(toId);
+    if (fromNode && toNode) {
+      appendBranchNode(outgoingChildrenByParent, fromId, toNode);
+      appendBranchNode(incomingChildrenByParent, toId, fromNode);
+    }
+  });
+
+  return {
+    outgoingChildrenByParent,
+    incomingChildrenByParent
+  };
+};
+
+const getUniqueBranchNodes = (nodes: any[], excludedNodeIds = new Set<string>()) => {
+  const seenNodeIds = new Set<string>(excludedNodeIds);
+  const uniqueNodes: any[] = [];
+
+  nodes.forEach(node => {
+    const nodeId = getBidirectionalNodeId(node);
+    if (!nodeId || seenNodeIds.has(nodeId)) {
+      return;
+    }
+
+    seenNodeIds.add(nodeId);
+    uniqueNodes.push(node);
+  });
+
+  return uniqueNodes;
+};
+
+const getBranchWeight = (
+  node: any,
+  childrenByParent: Map<string, any[]>,
+  visitedNodeIds = new Set<string>()
+) => {
+  const nodeId = getBidirectionalNodeId(node);
+  if (!nodeId || visitedNodeIds.has(nodeId)) {
+    return 0;
+  }
+
+  visitedNodeIds.add(nodeId);
+  return 1 + (childrenByParent.get(nodeId) || [])
+    .reduce((total, child) => total + getBranchWeight(child, childrenByParent, visitedNodeIds), 0);
+};
+
+const splitBranchesByWeight = (nodes: any[], childrenByParent: Map<string, any[]>) => {
+  const leftBranches: any[] = [];
+  const rightBranches: any[] = [];
+  let leftWeight = 0;
+  let rightWeight = 0;
+
+  nodes.forEach(node => {
+    const branchWeight = getBranchWeight(node, childrenByParent);
+    if (rightWeight <= leftWeight) {
+      rightBranches.push(node);
+      rightWeight += branchWeight;
+      return;
+    }
+
+    leftBranches.push(node);
+    leftWeight += branchWeight;
+  });
+
+  return {
+    leftBranches,
+    rightBranches
+  };
+};
+
+const resolveBidirectionalBranches = (
+  rootId: string,
+  outgoingChildrenByParent: Map<string, any[]>,
+  incomingChildrenByParent: Map<string, any[]>
+) => {
+  const excludedRootIds = new Set([rootId]);
+  const incomingRootBranches = getUniqueBranchNodes(incomingChildrenByParent.get(rootId) || [], excludedRootIds);
+  const incomingRootBranchIds = new Set(incomingRootBranches.map(getBidirectionalNodeId));
+  const outgoingRootBranches = getUniqueBranchNodes(outgoingChildrenByParent.get(rootId) || [], excludedRootIds)
+    .filter(node => !incomingRootBranchIds.has(getBidirectionalNodeId(node)));
+
+  if (incomingRootBranches.length > 0 && outgoingRootBranches.length > 0) {
+    return {
+      leftBranches: incomingRootBranches,
+      rightBranches: outgoingRootBranches,
+      leftChildrenByParent: incomingChildrenByParent,
+      rightChildrenByParent: outgoingChildrenByParent
+    };
+  }
+
+  const sourceBranches = incomingRootBranches.length > 0 ? incomingRootBranches : outgoingRootBranches;
+  const sourceChildrenByParent = incomingRootBranches.length > 0
+    ? incomingChildrenByParent
+    : outgoingChildrenByParent;
+  const branchGroups = splitBranchesByWeight(sourceBranches, sourceChildrenByParent);
+
+  return {
+    ...branchGroups,
+    leftChildrenByParent: sourceChildrenByParent,
+    rightChildrenByParent: sourceChildrenByParent
+  };
+};
+
 const applyBidirectionalPositions = (graphData: any) => {
   if (!graphData?.nodes?.length) return graphData;
 
@@ -271,17 +398,10 @@ const applyBidirectionalPositions = (graphData: any) => {
     nodeById.set(String(node.id), node);
   });
 
-  const childrenByParent = new Map<string, any[]>();
-  (graphData.links || []).forEach((link: any) => {
-    const child = nodeById.get(String(link.to));
-    if (!child) return;
-
-    const key = String(link.from);
-    if (!childrenByParent.has(key)) {
-      childrenByParent.set(key, []);
-    }
-    childrenByParent.get(key)!.push(child);
-  });
+  const {
+    outgoingChildrenByParent,
+    incomingChildrenByParent
+  } = buildDirectionalBranchMaps(graphData, nodeById);
 
   const rootId = String(graphData.rootId || graphData.nodes[0]?.id || '');
   const root = nodeById.get(rootId);
@@ -292,16 +412,21 @@ const applyBidirectionalPositions = (graphData: any) => {
     root.data = { ...(root.data || {}), branchSide: 'root' };
   }
 
-  const firstLevel = (childrenByParent.get(rootId) || []).filter(Boolean);
+  const {
+    leftBranches,
+    rightBranches,
+    leftChildrenByParent,
+    rightChildrenByParent
+  } = resolveBidirectionalBranches(rootId, outgoingChildrenByParent, incomingChildrenByParent);
+
   let rightRow = 0;
+  rightBranches.forEach((node) => {
+    rightRow = placeBranch(node, 1, 1, rightRow, rightChildrenByParent, new Set([rootId]));
+  });
+
   let leftRow = 0;
-  firstLevel.forEach((node, index) => {
-    const side = index % 2 === 0 ? 1 : -1;
-    if (side === 1) {
-      rightRow = placeBranch(node, side, 1, rightRow, childrenByParent);
-    } else {
-      leftRow = placeBranch(node, side, 1, leftRow, childrenByParent);
-    }
+  leftBranches.forEach((node) => {
+    leftRow = placeBranch(node, -1, 1, leftRow, leftChildrenByParent, new Set([rootId]));
   });
 
   return graphData;
@@ -312,14 +437,25 @@ const placeBranch = (
   side: number,
   depth: number,
   row: number,
-  childrenByParent: Map<string, any[]>
+  childrenByParent: Map<string, any[]>,
+  visitedNodeIds: Set<string>
 ) => {
-  const children = (childrenByParent.get(String(node.id)) || []).filter(Boolean);
+  const nodeId = getBidirectionalNodeId(node);
+  if (!nodeId || visitedNodeIds.has(nodeId)) {
+    return row;
+  }
+
+  visitedNodeIds.add(nodeId);
+  const children = (childrenByParent.get(nodeId) || [])
+    .filter(child => {
+      const childId = getBidirectionalNodeId(child);
+      return childId && !visitedNodeIds.has(childId);
+    });
   const startRow = row;
   let nextRow = row;
 
   children.forEach((child) => {
-    nextRow = placeBranch(child, side, depth + 1, nextRow, childrenByParent);
+    nextRow = placeBranch(child, side, depth + 1, nextRow, childrenByParent, visitedNodeIds);
   });
 
   const childRows = children
@@ -484,33 +620,26 @@ const renderBidirectionalTree = async (graphData: any) => {
       await graphInstance.setOptions(updatedOptions);
       await graphInstance.setJsonData(positionedGraphData);
 
-      // 处理双向树的特殊样式 - 简化版本，先确保颜色能改变
+      // 处理双向树左右分支的颜色
       const leftNodes: RGNode[] = [];
-      console.log('BidirectionalTreeLayoutComponent: 开始设置节点颜色，节点总数:', graphInstance.getNodes().length);
 
       for (const node of graphInstance.getNodes()) {
-        const oldColor = node.color;
         if (node.data?.branchSide === 'left') {
-          // 左侧节点：红色系
-          node.color = '#fecaca'; // 浅红色
-          node.borderColor = '#ef4444';
-          console.log(`左侧节点 ${node.id}: ${oldColor} -> ${node.color}`);
+          node.color = '#fff7ed';
+          node.borderColor = '#f59e0b';
+          node.fontColor = '#7c2d12';
           leftNodes.push(node);
         } else if (node.data?.branchSide === 'right') {
-          // 右侧节点：蓝色系
-          node.color = '#bfdbfe'; // 浅蓝色
-          node.borderColor = '#3b82f6';
-          console.log(`右侧节点 ${node.id}: ${oldColor} -> ${node.color}`);
+          node.color = '#ecfeff';
+          node.borderColor = '#0891b2';
+          node.fontColor = '#164e63';
         } else {
-          // 根节点：金色
-          node.color = '#fde68a';
-          node.borderColor = '#f59e0b';
-          console.log(`根节点 ${node.id}: ${oldColor} -> ${node.color}`);
+          node.color = '#e0f2fe';
+          node.borderColor = '#0e7490';
+          node.fontColor = '#0f172a';
         }
       }
 
-      // 刷新图谱以应用颜色变化
-      console.log('BidirectionalTreeLayoutComponent: 刷新图谱以应用颜色变化');
       await graphInstance.refresh();
 
       // 处理左侧连线的文本位置
@@ -630,7 +759,9 @@ defineExpose({
   position: relative;
   width: 100%;
   height: calc(100vh);
-  background-color: #fafafa;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(14, 116, 144, 0.08), transparent 32%),
+    linear-gradient(180deg, #f8fbff 0%, #f3f6fb 100%);
 }
 
 .graph-fullscreen-toggle {
@@ -653,13 +784,13 @@ defineExpose({
 }
 
 .graph-fullscreen-toggle:hover {
-  border-color: #4f46e5;
-  color: #4f46e5;
+  border-color: #0e7490;
+  color: #0e7490;
   background: #ffffff;
 }
 
 .graph-fullscreen-toggle:focus-visible {
-  outline: 2px solid #4f46e5;
+  outline: 2px solid #0e7490;
   outline-offset: 2px;
 }
 
@@ -670,7 +801,7 @@ defineExpose({
 
 /* 双向树布局样式 - 内联版本 */
 .layout-bidirectional-tree {
-  background-color: #fafafa;
+  background-color: #f3f6fb;
 }
 
 /* 节点基础样式 - 强制覆盖白色背景 */
@@ -686,50 +817,54 @@ defineExpose({
 ::v-deep(.layout-bidirectional-tree .rel-nodediv > div) {
   box-sizing: border-box !important;
   border-radius: 8px !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 18px rgba(15, 23, 42, 0.07) !important;
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease !important;
 }
 
-/* 节点悬停效果 - 增强渐变色的交互体验 */
+/* 节点悬停效果 */
 ::v-deep(.layout-bidirectional-tree .rel-node:hover),
 ::v-deep(.layout-bidirectional-tree .rel-node-peel:hover),
 ::v-deep(.layout-bidirectional-tree .rel-nodediv:hover) {
-  border-color: #4f46e5 !important;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2) !important;
-  transform: translateY(-2px) scale(1.02) !important;
-  filter: brightness(1.05) !important;
+  border-color: #0e7490 !important;
+  box-shadow:
+    0 2px 5px rgba(15, 23, 42, 0.06),
+    0 12px 24px rgba(15, 76, 117, 0.12) !important;
+  transform: translateY(-1px) scale(1.01) !important;
+  filter: brightness(1.02) !important;
 }
 
 /* 连线样式 */
 ::v-deep(.layout-bidirectional-tree .rel-line) {
-  stroke: #9ca3af !important;
-  stroke-width: 1px !important;
+  stroke: #c8d2de !important;
+  stroke-width: 1.1px !important;
   transition: stroke 0.2s ease, stroke-width 0.2s ease, opacity 0.2s ease !important;
 }
 
 ::v-deep(.layout-bidirectional-tree .rel-line:hover) {
-  stroke: #6b7280 !important;
-  stroke-width: 2px !important;
+  stroke: #8fb1c7 !important;
+  stroke-width: 1.7px !important;
 }
 
-/* 节点文本样式 - 优化渐变背景上的可读性 */
+/* 节点文本样式 */
 ::v-deep(.layout-bidirectional-tree .c-node-text),
 ::v-deep(.layout-bidirectional-tree .rel-node-text),
 ::v-deep(.layout-bidirectional-tree .rel-node .c-node-text),
 ::v-deep(.layout-bidirectional-tree .rel-node text) {
-  fill: #1f2937 !important;
-  color: #1f2937 !important;
+  fill: #1e293b !important;
+  color: #1e293b !important;
   font-size: 12px !important;
   font-weight: 600 !important;
   text-align: center !important;
   line-height: 1.2 !important;
   padding: 4px !important;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8) !important; /* 添加白色文字阴影增强可读性 */
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85) !important;
 }
 
 /* 连线文本样式 */
 ::v-deep(.layout-bidirectional-tree .rel-line-text) {
-  fill: #6b7280 !important;
+  fill: #64748b !important;
   font-size: 10px !important;
   font-weight: normal !important;
 }

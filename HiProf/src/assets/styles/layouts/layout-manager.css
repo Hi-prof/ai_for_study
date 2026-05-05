@@ -43,9 +43,7 @@
     height: 100px !important;
   }
   
-  .layout-center .rel-node,
-  .layout-center .rel-node-peel,
-  .layout-center .rel-nodediv {
+  .layout-center .rel-node:not(.kg-center-node) {
     width: 60px !important;
     height: 60px !important;
   }

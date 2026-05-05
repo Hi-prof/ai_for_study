@@ -27,10 +27,27 @@
       </div>
     </header>
 
-    <div class="teacher-course-workspace__shell">
-      <aside class="teacher-course-workspace__sidebar" aria-label="课程工作台导航">
+    <div
+      class="teacher-course-workspace__shell"
+      :class="{ 'is-sidebar-collapsed': sidebarCollapsed }"
+    >
+      <aside
+        class="teacher-course-workspace__sidebar"
+        :class="{ 'is-collapsed': sidebarCollapsed }"
+        aria-label="课程工作台导航"
+      >
         <div class="teacher-course-workspace__sidebar-header">
           <h1>{{ courseInfo.title }}</h1>
+          <button
+            type="button"
+            class="teacher-course-workspace__sidebar-toggle"
+            :aria-expanded="String(!sidebarCollapsed)"
+            :aria-label="sidebarToggleLabel"
+            :title="sidebarToggleLabel"
+            @click="toggleSidebar"
+          >
+            <WorkspaceIcon :name="sidebarCollapsed ? 'arrowRight' : 'arrowLeft'" :size="16" />
+          </button>
         </div>
 
         <nav class="teacher-course-workspace__nav">
@@ -41,6 +58,8 @@
             class="teacher-course-workspace__nav-item"
             :class="{ 'is-active': activeTab === tab.key }"
             :aria-current="activeTab === tab.key ? 'page' : undefined"
+            :aria-label="tab.label"
+            :title="sidebarCollapsed ? tab.label : undefined"
             @click="switchTab(tab.key)"
           >
             <span class="teacher-course-workspace__nav-icon">
@@ -100,6 +119,9 @@ const courseViews = {
 const activeTab = ref(defaultTeacherCourseWorkspaceTab);
 const courseId = computed(() => String(route.params.courseId || ''));
 const courseStorageKey = computed(() => `course-detail-active-tab-${courseId.value}`);
+const sidebarStorageKey = 'teacher-course-workspace-sidebar-collapsed';
+const sidebarCollapsed = ref(localStorage.getItem(sidebarStorageKey) === 'true');
+const sidebarToggleLabel = computed(() => sidebarCollapsed.value ? '展开左侧菜单' : '折叠左侧菜单');
 const activeView = computed(() => courseViews[activeTab.value] || CourseChapters);
 
 const menuTabs = teacherCourseWorkspaceTabs.map(tab => ({
@@ -175,6 +197,11 @@ function switchTab(tabKey) {
       tab: nextTab
     }
   }).catch(() => {});
+}
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+  localStorage.setItem(sidebarStorageKey, String(sidebarCollapsed.value));
 }
 
 function handleBackToCourses() {

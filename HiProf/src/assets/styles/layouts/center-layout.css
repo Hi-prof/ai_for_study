@@ -1,32 +1,244 @@
-/* 中心布局专用样式 - 圆形节点 */
+/* 中心布局专用样式 - relation-graph 自定义圆形节点 */
+.layout-center {
+  background:
+    radial-gradient(circle at 50% 48%, rgba(14, 165, 162, 0.08), transparent 30%),
+    linear-gradient(180deg, #f8fbff 0%, #f3f6fb 100%);
+}
+
 .layout-center .rel-node,
 .layout-center .rel-node-peel,
 .layout-center .rel-node-peel-checked,
 .layout-center .rel-nodediv {
+  overflow: visible !important;
+}
+
+.layout-center .rel-node.kg-center-node {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: transparent !important;
+}
+
+.layout-center .rel-node.kg-center-node > *,
+.layout-center .rel-node.kg-center-node .c-node-text {
+  width: 100% !important;
+  height: 100% !important;
+  padding: 0 !important;
+  overflow: visible !important;
   border-radius: 50% !important;
-  width: 80px !important;
-  height: 80px !important;
+  pointer-events: auto !important;
 }
 
-.layout-center .rel-node > *,
-.layout-center .rel-node-peel > *,
-.layout-center .rel-nodediv > * {
-  border-radius: 50% !important;
+.layout-center .kg-center-node-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
 }
 
-/* 中心布局节点悬停效果 */
-.layout-center .rel-node:hover {
-  transform: scale(1.1);
-  box-shadow: 0 4px 16px rgba(52, 152, 219, 0.4);
+.layout-center .kg-center-normal-shell {
+  border: 1px solid #d4dce8;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  color: #516173;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 18px rgba(15, 23, 42, 0.07);
 }
 
-/* 中心布局连线样式 */
+.layout-center .kg-center-root-shell {
+  border: 1px solid rgba(14, 116, 144, 0.45);
+  background:
+    radial-gradient(circle at 50% 16%, rgba(255, 255, 255, 0.38), transparent 32%),
+    linear-gradient(145deg, #0f766e 0%, #155e75 46%, #1d4ed8 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 10px 24px rgba(15, 76, 117, 0.22);
+  color: #fff;
+}
+
+.layout-center .kg-center-root-shell::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border: 1px solid rgba(14, 116, 144, 0.16);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.layout-center .rel-node.kg-center-node:hover .kg-center-normal-shell {
+  transform: translateY(-1px) scale(1.06);
+  border-color: #8fb1c7;
+  background: #ffffff;
+  box-shadow:
+    0 2px 5px rgba(15, 23, 42, 0.06),
+    0 12px 24px rgba(15, 76, 117, 0.12);
+}
+
+.layout-center .rel-node.kg-center-node:hover .kg-center-root-shell {
+  transform: translateY(-1px) scale(1.04);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.58),
+    0 14px 30px rgba(15, 76, 117, 0.28);
+}
+
+.layout-center .kg-center-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+}
+
+.layout-center .kg-center-node-svg {
+  width: 25px;
+  height: 25px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.65;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.layout-center .kg-center-node-label {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 9px);
+  max-width: 142px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  transform: translateX(-50%);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.95);
+  box-shadow: none;
+}
+
+.layout-center .kg-center-root-label {
+  position: relative;
+  z-index: 1;
+  display: -webkit-box;
+  max-width: 68px;
+  padding: 0 7px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.28);
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  pointer-events: none;
+}
+
+.layout-center .kg-center-toggle {
+  position: absolute;
+  right: -6px;
+  top: -6px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid #c6d1dd;
+  border-radius: 50%;
+  background: #fff;
+  color: #526375;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.08),
+    0 4px 10px rgba(15, 76, 117, 0.1);
+}
+
+.layout-center .kg-center-toggle:hover {
+  border-color: #0f766e;
+  color: #0f766e;
+  background: #f6fffd;
+}
+
+.layout-center .kg-center-root-shell .kg-center-toggle {
+  right: 0;
+  top: 0;
+  border-color: rgba(255, 255, 255, 0.72);
+  color: #0f4f5f;
+}
+
+.layout-center .c-rg-line,
 .layout-center .rel-line {
-  stroke-width: 2px;
-  stroke: rgba(52, 152, 219, 0.8);
+  stroke: #d5dee8 !important;
+  stroke-width: 1.15px !important;
+  opacity: 0.86;
 }
 
-.layout-center .rel-line:hover {
+.layout-center .c-rg-line-bg {
+  stroke-width: 8px !important;
+}
+
+.layout-center .c-rg-line-text,
+.layout-center .rel-line-text {
+  fill: #94a3b8 !important;
+  color: #94a3b8 !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  paint-order: stroke;
+  stroke: #fff;
   stroke-width: 3px;
-  stroke: rgba(52, 152, 219, 1);
+}
+
+.layout-center .rel-link-peel:hover .c-rg-line,
+.layout-center .rel-line:hover {
+  stroke: #8fb1c7 !important;
+  stroke-width: 1.6px !important;
+}
+
+.layout-center .rel-miniview {
+  right: 14px !important;
+  bottom: 14px !important;
+  border: 1px solid rgba(177, 190, 204, 0.72) !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, 0.86) !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12) !important;
+}
+
+.layout-center .rel-miniview canvas {
+  border: 0 !important;
+  opacity: 0.76 !important;
+}
+
+.layout-center .rel-mv-visible-area {
+  border-color: rgba(14, 116, 144, 0.78) !important;
+  background: rgba(14, 116, 144, 0.14) !important;
+}
+
+@media (max-width: 768px) {
+  .layout-center .kg-center-node-label {
+    max-width: 116px;
+    font-size: 11px;
+  }
 }
